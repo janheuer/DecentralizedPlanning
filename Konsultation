@@ -1,0 +1,64 @@
+Hier sind Notizen für die wöchentlichen Konsultationen
+
+Vor dem 4.10:
+M?gliche Probleme
+ Was, wenn sich Roboter gegenseitig im Weg stehen?
+ Wann neuen Pfad berechenen? Bei allen ?nderungen oder nur, wenn der derzeitige Pfad gest?rt wird?
+ Wie in python simulieren? Wie sagen, dass ?nderungen ankommen und wann.
+ Atome direkt hinzuf?gen oder nur Instanzdatei ?ndern?
+ Mehrere Roboter => Gleichzeitige Zugriffe auf die Instanz => mutex? Simulieren durch Threads?
+ Pos zum Zeitpunkt der Pfad?nderung auslesen, neue Information einarbeiten, alte Pos als neuen Startpunkt definieren und dann neu grounden/solven
+ assign_external(atom(), True) -> not atom()
+ clingo.parse.term()
+ Start von Anfang an external -> kann rein und rausgenommen werden
+
+ Alle Beispiele noch Python 2, Python 3 wird aber ben?tigt
+
+for x in prg.symbolic_atoms: # ?ber alle #externals iterieren
+		if x.is_external == True:
+			print (x.symbol,  x.literal)
+			prg.assign_external(clingo.Function(x,[x]), True)
+
+ Wie f?r alle M?glichkeiten allgemein nutzbar machen?
+ Instanzdatei, auf der wir mit python lesen/schreiben und in der die derzeit aktive Instanz ist
+ F?r jedes external eine Variable und True/False setzen, wenn aktiv/nicht aktiv
+
+
+4.10:
+Visualizer einbringen
+Vorbereitung auf mehrere Roboter
+
+clingo option --opt
+model.optimality_proven nur wenn mehrere Optima gebraucht werden
+
+Ideen:
+Roboter kennt nur Gebiet um ihn herum, nicht gesamtes Feld
+
+
+08.10:
+ - "Solving..." Ausgabe unterdrücken?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
