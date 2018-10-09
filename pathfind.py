@@ -38,7 +38,7 @@ def main(prg):
 
 	# externals festlegen
 	prg.assign_external(clingo.Function("size", size), True)
-	prg.assign_external(clingo.Function("start", start), True)
+	#prg.assign_external(clingo.Function("start", start), True)
 	prg.assign_external(clingo.Function("goal", goal), True)
 
 	# initialisierung für schleife
@@ -52,6 +52,12 @@ def main(prg):
 
 	# für print ausgaben in der schleife am besten mit clingo option --outf=3 ausführen
 	# ausgaben zeigen gemachte bewegung an und wann auf ein blockiertes feld gelaufen würde
+	
+	print("init(object(robot,1),value(at,("+str(start[1])+","+str(start[0])+"))).")
+	for i in range(size[0]):
+		for j in range(size[1]):
+			print("init(object(node,"+str(i+j*size[1]+1)+"),value(at,("+str(i+1)+","+str(j+1)+"))).")
+	print("init(object(pickingStation,1),value(at,("+str(goal[1])+","+str(goal[0])+"))).")
 	
 	actlist = []
 	
@@ -70,7 +76,7 @@ def main(prg):
 			prg.assign_external(clingo.Function("start", start), False) # alter start wird falsch
 			prg.assign_external(clingo.Function("start", current_pos), True) # neuer start wird true
 			start = current_pos
-			print("Solving")
+			#print("Solving")
 			with prg.solve(yield_=True) as h:
 				# auswählen des letzten (also des optimalen) modells
 				for m in h:
