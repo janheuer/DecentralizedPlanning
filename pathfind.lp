@@ -1,45 +1,42 @@
-% In:
-% size(X, Y) 	- Raum mit der Größe X Y
-% block(X, Y) 	- Feld an der pos X Y ist geblockt
-% start(X, Y)	- Startfeld
-% goal(X, Y)	- Gewolltes Endfeld
+%[1,1,1,1,1]
+%[1,0,1,1,1]
+%[0,1,1,0,1]
+%[1,1,0,1,1]
+%[1,1,0,1,1]
 
-% pos(X, Y, Z)		- Roboter an pos X Y zum Zeitpunkt Z
-% move(X, Y, Z)	- Roboter bewegt sich in Richtung X Y zum Zeitpunkt Z
+%start(5, 1).
+%goal(1, 1).
 
-#program base.
-horizon(20).
+%node(1,1). node(1,2). node(1,3). node(1,4). node(1,5).
+%node(2,1). node(2,3). node(2,4). node(2,5).
+%node(3,2). node(3,3). node(3,5).
+%node(4,1). node(4,2). node(4,4). node(4,5).
+%node(5,1). node(5,2). node(5,4). node(5,5).
+
+
+%%%
+
 size(5, 5).
+time(1..30).
 
+robot(1).
+dir(1,0). dir(-1,0). dir(0,1). dir(0,-1).
 
-dir(1, 0). dir(-1, 0). dir(0, 1). dir(0, -1).
+pos(X, Y, 0, 1) :- start(X, Y).
 
-% Startposition
-pos(X, Y, 0) :- start(X, Y).
+{move(X, Y, T, R) : dir(X, Y), robot(R)}<=1 :- time(T).
 
+pos(MX+PX, MY+PY, T, R) :- pos(PX, PY, T-1, R), move(MX, MY, T, R).
+:- pos(X, Y, T, R), not node(X, Y).
 
-% Position nach einem move berechnen und prüfen, ob der Zug möglich ist
-pos(X+A, Y+B, N+1) :- pos(X, Y, N), move(A, B, N+1), N < H, horizon(H), X+A > 0, Y+B > 0, size(SX, SY), X+A < SX, Y+B < SY, not block(X, Y).
-
-% Bewegungen machen
-{move(DX, DY, N+1) : dir(DX, DY)} <= 1 :- pos(_, _, N), N < H, horizon(H).
-
-% Probleme, wenn ein Feld bei änderungen mehrmals benutzt werden muss? 
-%:- pos(X, Y, N), pos(X2, Y2, N), X != X2.
-%:- pos(X, Y, N), pos(X2, Y2, N), Y != Y2.
-:- pos(X, Y, N1), pos(X, Y, N2), N1 < N2.
-
-% Haben wir das Ziel erreicht?
-reached :- pos(X, Y, N), goal(X, Y).
+reached :- pos(X, Y, T, R), goal(X, Y).
 :- not reached.
 
-% Optimize
-#minimize{1, N : move(_, _, N)}.
 
+#minimize{1, T : move(_, _, T, _)}.
 
-#show move/3.
-#show pos/3.
-
+#show move/4.
+#show pos/4.
 
 
 
