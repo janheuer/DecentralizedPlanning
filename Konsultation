@@ -38,6 +38,20 @@ Roboter kennt nur Gebiet um ihn herum, nicht gesamtes Feld
 08.10:
  - "Solving..." Ausgabe unterdrücken?
 
+16.10:
+2 Programme:
+States-Programm, um die sichtbare Umgebung zu steuern
+Solve-Programm, um die Roboter zu steuern
+Solve gibt an States eine Nachricht, dass ein Schritt durchgeführt wurde und wartet auf eine Antwort
+States antwortet mit möglichen Änderungen an der Umgebung und wartet dann auf neuen Input durch solve
+
+ToDo:
+Begrenzte Sensorreichweite
+Neues Encoding
+
+Nächste Schritte:
+Mehr Funktionen für das Warenhaus (Regale, Orders, ...)
+Mehrere Roboter
 
 
 
