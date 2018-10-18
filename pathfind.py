@@ -52,6 +52,12 @@ def main(prg):
 	# für print ausgaben in der schleife am besten mit clingo option --outf=3 ausführen
 	# ausgaben zeigen gemachte bewegung an und wann auf ein blockiertes feld gelaufen würde
 	
+	print("init(object(robot,1),value(at,("+str(start[1])+","+str(start[0])+"))).")
+	for i in range(size[0]):
+		for j in range(size[1]):
+			print("init(object(node,"+str(i+j*size[1]+1)+"),value(at,("+str(i+1)+","+str(j+1)+"))).")
+	print("init(object(pickingStation,1),value(at,("+str(goal[1])+","+str(goal[0])+"))).")
+	
 	actlist = []
 	
 	while(not goal_reached):
