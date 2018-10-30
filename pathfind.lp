@@ -15,6 +15,7 @@ highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
 % bei erneutem solven (weil weg blockiert war) muss festgelegt werden was bereits erledigt wurde
 #external pickup(0).
 #external deliver(0).
+#external block(X, Y) : highway(X, Y).
 
 pickup(0).
 deliver(0).
