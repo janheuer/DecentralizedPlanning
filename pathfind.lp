@@ -1,11 +1,6 @@
-% External um Konflikte zu umgehen
-% Action und move können nicht gleichzeitig vorkommen
-%
-
-
 % Überstzung der spezifizierten Instanzen
 node(X, Y) :- init(object(node, _), value(at, (X, Y))).
-robot(R) :- init(object(robot, R), value(at, (_, _))).
+% robot(R) :- init(object(robot, R), value(at, (_, _))).
 shelf(X, Y, N) :- init(object(shelf,N),value(at,(X,Y))).
 station(X, Y, N) :- init(object(pickingStation,N),value(at,(X,Y))).
 product(N, S) :- init(object(product,N),value(on,(S,_))), shelf(X, Y, S).
@@ -36,11 +31,11 @@ action(T) :- {pickup(T); deliver(T); putdown(T)} = 1, time(T).
 
 :- pos(X, Y, _), block(X, Y).
 :- pos(X, Y, _), not node(X, Y).
-:- pos(X, Y, _), shelf(X, Y, _), not goal(X, Y, 1).
+:- pos(X, Y, T), shelf(X, Y, _), not goal(X, Y, 1), time(T). % zu t=0 darf roboter auf feld mit shelf stehen
 :- pos(X, Y, _), station(X, Y, N), not goal(X, Y, 2).
 :- move(X, Y, T), move(-X, -Y, T-1), time(T).
 
-pickup(T) :- pos(X, Y, T-1), goal(X, Y, 1), not putdown(T), not pickup(T-1), not putdown(T-1).
+pickup(T) :- pos(X, Y, T-1), goal(X, Y, 1), not putdown(T), not pickup(T-1), not putdown(T-1), not carries(T-1).
 :- not pickup(_).
 
 carries(T) :- pickup(T).
@@ -65,3 +60,4 @@ goal(X, Y, 3) :- goal(X, Y, 1).
 #show move/3.
 #show pos/3.
 #show carries/1.
+#show block/2.
