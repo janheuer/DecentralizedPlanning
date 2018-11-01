@@ -38,6 +38,7 @@ action(T) :- {pickup(T); deliver(T); putdown(T)} = 1, time(T).
 :- pos(X, Y, _), not node(X, Y).
 :- pos(X, Y, _), shelf(X, Y, _), not goal(X, Y, 1).
 :- pos(X, Y, _), station(X, Y, N), not goal(X, Y, 2).
+:- move(X, Y, T), move(-X, -Y, T-1), time(T).
 
 pickup(T) :- pos(X, Y, T-1), goal(X, Y, 1), not putdown(T), not pickup(T-1), not putdown(T-1).
 :- not pickup(_).
