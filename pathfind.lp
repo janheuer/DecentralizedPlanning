@@ -1,9 +1,10 @@
 % Überstzung der spezifizierten Instanzen
 node(X, Y) :- init(object(node, _), value(at, (X, Y))).
 % robot(R) :- init(object(robot, R), value(at, (_, _))).
+#external available(N) : init(object(shelf,N),value(at,(X,Y))).
 shelf(X, Y, N) :- init(object(shelf,N),value(at,(X,Y))).
 station(X, Y, N) :- init(object(pickingStation,N),value(at,(X,Y))).
-product(N, S) :- init(object(product,N),value(on,(S,_))), shelf(X, Y, S).
+product(N, S) :- init(object(product,N),value(on,(S,_))).
 highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
 #external start(X, Y) : init(object(node, _), value(at, (X, Y))).
 #external order(P, S) : init(object(order, N), value(line, (P, A))), init(object(order, N), value(pickingStation, S)). % external damit bestellungen zugeordnet werden können
@@ -29,7 +30,7 @@ pos(X, Y, T) :- pos(X, Y, T-1), node(X, Y), time(T), action(T).
 
 action(T) :- {pickup(T); deliver(T); putdown(T)} = 1, time(T).
 
-:- pos(X, Y, _), block(X, Y).
+:- pos(X, Y, 1), block(X, Y). % bewegung auf blocked feld nur für t=1 nicht erlaubt
 :- pos(X, Y, _), not node(X, Y).
 :- pos(X, Y, T), shelf(X, Y, _), not goal(X, Y, 1), time(T). % zu t=0 darf roboter auf feld mit shelf stehen
 :- pos(X, Y, _), station(X, Y, N), not goal(X, Y, 2).
@@ -48,7 +49,9 @@ putdown(T) :- pos(X, Y, T-1), goal(X, Y, 3), deliver(T2), T > T2, carries(T-1).
 
 #minimize{1,T : move(X, Y, T)}.
 
-{goal(X, Y, 1) : shelf(X, Y, N), product(P, N)} = 1 :- order(P, _).
+%{goal(X, Y, 1) : shelf(X, Y, N), product(P, N)} = 1 :- order(P, _).
+{goal(X, Y, 1) : shelf(X, Y, N), available(N)} = 1. % roboter kann nur aus verfügbaren shelves auswählen
+% im moment immer nur ein shelf verfügbar
 goal(X, Y, 2) :- order(P, S), station(X, Y, S).
 goal(X, Y, 3) :- goal(X, Y, 1).
 
