@@ -1,16 +1,21 @@
+# -*- coding: utf-8 -*-
+
 # Programm aufgeteielt in pathfind.py + robot.py
 # -> nicht mehr über clingo aufrufen sondern nur mit python
 # Fuer anzeigen im visualizer: simulatorCostum.py (-> braucht die Dateien simulator.py und network.py aus visualizer/scripts)
-# Im visualizer starten über: Network->Initialize simulator, dort kommando zum starten des programms eingeben (also python ./pathfind.py) + port 5001 
-# Alternativ: Ausgaben durch print mit printer.py (-> dafür zeile 29 auskommentieren und dafür zeile 30 nutzen)
+# Im visualizer starten ueber: Network->Initialize simulator, dort kommando zum starten des programms eingeben (also python ./pathfind.py) + port 5001
+# Alternativ: Ausgaben durch print mit printer.py (-> dafuer zeile 29 auskommentieren und dafuer zeile 30 nutzen)
 
 import clingo
 import simulatorCostum
 import printer
 import robot
+from time import time
 
 class Pathfind(object):
-    def __init__(self, instance, encoding):
+    def __init__(self, instance, encoding, output, benchmark):
+        self.output = output
+        self.benchmark = benchmark
         # speichern der instanz in entsprechenden datenstrukturen + erstellen der roboter
         self.instance = instance
         self.encoding = encoding
@@ -26,31 +31,35 @@ class Pathfind(object):
         # pickingstations: [[id, x, y]]
         # shelves: [[id, x, y]]
         # products: [[id, shelf]]
-
-        # initialisieren des simulators
-        self.sim = simulatorCostum.SimulatorCostum()
-        #self.sim = printer.Printer() # keine verwendung des visualizers, statt dessen print ausgaben
-        self.sim.add_inits(self.get_inits())
-
-        # initialisieren der roboter
-        for robot in self.robots:
-            self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
-            robot.update_state(self.state)
-            self.assign_order(robot)
-            robot.solve()
+        self.orders_in_delivery = []
+        self.used_shelves = []
 
         self.t = 0
 
+        # initialisieren des simulators
+        if self.output == "viz":
+            self.sim = simulatorCostum.SimulatorCostum()
+        elif self.output == "print":
+            self.sim = printer.Printer() # keine verwendung des visualizers, statt dessen print ausgaben
+
+        if self.output is not None:
+            self.sim.add_inits(self.get_inits())
+
+        # initialisieren der roboter
+        for robot in self.robots:
+            robot.update_state(self.state)
+            self.assign_order(robot)
+            print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" shelf="+str(robot.shelf)+" at t="+str(self.t))
+            if self.benchmark:
+                ts = time()
+            robot.solve()
+            if self.benchmark:
+                tf = time()
+                print("time = %s" %(tf-ts))
+
     def run(self):
-        while self.orders != []:#or zur zeit bearbeitete orders != []
+        while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
-            # blockierte felder zum testen
-            if (5>=self.t>=2):
-                self.state[4-1][6-1] = 0
-            if (16>=self.t>=13):
-                self.state[4-1][2-1] = 0
-            if (39>=self.t>=22):
-                self.state[8-1][2-1] = 0
             for robot in self.robots:
                 robot.update_state(self.state)
                 if robot.action_possible():
@@ -58,10 +67,18 @@ class Pathfind(object):
                 else:
                     # todo: wenn roboter auf pickingstation bewegen will, neu solven nicht sinnvoll
                     # statdessen warten bis pickingstation wieder frei
+                    print("robot"+str(robot.id)+" replanning at t="+str(self.t))
+                    if self.benchmark:
+                        ts = time()
                     robot.solve()
+                    if self.benchmark:
+                        tf = time()
+                        print("time = %s" %(tf-ts))
                     self.perform_action(robot)
         # visualization starten
-        self.sim.run(self.t)
+        if self.output == "viz":
+            self.sim.run(self.t)
+        print("Total plan length = "+str(self.t))
 
     def parse_instance(self):
         self.nodes = []
@@ -129,37 +146,52 @@ class Pathfind(object):
             for j in range(max(self.nodes, key=lambda item:item[2])[2]):
                 self.state[i].append(1)
 
+        for r in self.robots:
+            self.state[r.pos[0]-1][r.pos[1]-1] = 0
+
     def assign_order(self, robot):
         # todo: keine ueberschneidungen in zugeteielten orders
-        robot.set_order(self.orders[0][0], self.orders[0][1], self.orders[0][2])
-        # aus orders loeschen und in liste mit zur zeit bearbeiteten orders speichern
+        # todo: shelf zuordnung überarbeiten
+        possible_shelves = [shelf for [id, shelf] in self.products if id == self.orders[0][1]]
+        for id in self.used_shelves:
+            if id in possible_shelves:
+                possible_shelves.remove(id)
+        self.used_shelves.append(possible_shelves[0])
+        robot.set_order(self.orders[0][0], self.orders[0][1], self.orders[0][2], possible_shelves[0])
+        self.orders_in_delivery.append(self.orders[0])
+        self.orders.remove(self.orders[0])
 
     def perform_action(self, robot):
-        prev_pos = robot.pos
+        self.state[robot.pos[0]-1][robot.pos[1]-1] = 1
         name, args = robot.action()
-        self.sim.add(robot.id, name, args, self.t)
-        if name == "move":
-            self.state[prev_pos[0]-1][prev_pos[1]-1] = 1
-            self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
-        elif name == "putdown":
-            self.update_orders(robot.order)
+        if name == "":
+            return
+        if self.output is not None:
+            self.sim.add(robot.id, name, args, self.t)
+        if name == "putdown":
+            self.update_orders(robot.order, robot.shelf)
             if self.orders != []:
                 self.assign_order(robot)
+                print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" shelf="+str(robot.shelf)+" at t="+str(self.t))
+                if self.benchmark:
+                    ts = time()
                 robot.solve()
+                if self.benchmark:
+                    tf = time()
+                    print("time = %s" %(tf-ts))
+        self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
 
-    def update_orders(self, order):
-        # aus liste mit zur zeit bearbeiteten order speichern
-        self.orders.remove(order)
+    def update_orders(self, order, shelf):
+        self.used_shelves.remove(shelf)
+        self.orders_in_delivery.remove(order)
 
     def get_inits(self):
         # alle inits werden als string zur liste inits hinzugefuegt, diese wird dem simulator uebergebn
         inits = []
         for node in self.nodes:
-            if node not in [[59,4,6], [15,4,2], [19,8,2]]: # blockierte felder zum testen
-                inits.append("init(object(node,"+str(node[0])+"),value(at,("+str(node[1])+","+str(node[2])+")))")
+            inits.append("init(object(node,"+str(node[0])+"),value(at,("+str(node[1])+","+str(node[2])+")))")
         for highway in self.highways:
-            if highway not in [[59,4,6], [15,4,2], [19,8,2]]: # blockierte felder zum testen
-                inits.append("init(object(highway,"+str(highway[0])+"),value(at,("+str(highway[1])+","+str(highway[2])+")))")
+            inits.append("init(object(highway,"+str(highway[0])+"),value(at,("+str(highway[1])+","+str(highway[2])+")))")
         for robot in self.robots:
             inits.append("init(object(robot,"+str(robot.id)+"),value(at,("+str(robot.pos[0])+","+str(robot.pos[1])+")))")
             if robot.pickupdone:
@@ -180,5 +212,19 @@ class Pathfind(object):
         return inits
 
 if __name__ == "__main__":
-    pathfind = Pathfind('./instance.lp', './pathfind.lp')
+    output = None
+    benchmark = True
+
+    if benchmark:
+        t1 = time()
+    pathfind = Pathfind('./instance.lp', './pathfind.lp', output, benchmark)
+    if benchmark:
+        t2 = time()
+        print("Init time = %s" %(t2-t1))
+
+    if benchmark:
+        t1 = time()
     pathfind.run()
+    if benchmark:
+        t2 = time()
+        print("Run time = %s" %(t2-t1))
