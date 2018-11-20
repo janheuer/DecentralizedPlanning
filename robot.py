@@ -26,6 +26,7 @@ class Robot(object):
         self.t=-1
 
         self.order = [-1,-1,-1]
+        self.available_shelves = []
         self.shelf = -1
 
         self.pickupdone = False
@@ -34,7 +35,7 @@ class Robot(object):
         self.prg = clingo.Control()
         self.prg.load(encoding)
         self.prg.load(instance)
-        self.prg.ground([("base", [])])
+        self.prg.ground([("base", [])]) #time
 
         self.plan_finished = False
 
@@ -49,6 +50,11 @@ class Robot(object):
         self.prg.assign_external(clingo.Function("pickup", [0]), self.pickupdone)
         self.prg.assign_external(clingo.Function("deliver", [0]), self.deliverdone)
 
+        if self.shelf != -1:
+            for shelf in self.available_shelves:
+                self.prg.assign_external(clingo.Function("available", [shelf]), False)
+            self.prg.assign_external(clingo.Function("available", [self.shelf]), True)
+
         for i in range(len(self.state)):
             for j in range(len(self.state[0])):
                 self.prg.assign_external(clingo.Function("block", [i+1,j+1]), not self.state[i][j])
@@ -58,6 +64,8 @@ class Robot(object):
                 opt = m
             for atom in opt.symbols(shown=True):
                 self.model.append(atom)
+                if atom.name == "chooseShelf":
+                    self.shelf = atom.arguments[0].number
 
         self.t = 0
         self.get_next_action()
@@ -88,7 +96,8 @@ class Robot(object):
                 self.pickupdone = False
                 self.deliverdone = False
                 self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2]]), False)
-                self.prg.assign_external(clingo.Function("available", [self.shelf]), False)
+                for shelf in self.available_shelves:
+                    self.prg.assign_external(clingo.Function("available", [shelf]), False)
             else:
                 if name == "move":
                     self.pos[0] = self.next_pos[0]
@@ -103,13 +112,16 @@ class Robot(object):
             self.t += 1
             return name, args
 
-    def set_order(self, id, product, station, shelf):
+    def set_order(self, id, product, station, available_shelves):
+        self.shelf = -1
+
         self.order[0] = id
         self.order[1] = product
         self.order[2] = station
-        self.shelf = shelf
+        self.available_shelves = available_shelves
         self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2]]), True)
-        self.prg.assign_external(clingo.Function("available", [self.shelf]), True)
+        for shelf in self.available_shelves:
+            self.prg.assign_external(clingo.Function("available", [shelf]), True)
 
     def update_state(self, state):
         if self.state == []:
