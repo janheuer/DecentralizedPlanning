@@ -50,7 +50,9 @@ putdown(T) :- pos(X, Y, T-1), goal(X, Y, 3), deliver(T2), T > T2, carries(T-1).
 #minimize{1,T : move(X, Y, T)}.
 
 %{goal(X, Y, 1) : shelf(X, Y, N), product(P, N)} = 1 :- order(P, _).
-{goal(X, Y, 1) : shelf(X, Y, N), available(N)} = 1. % roboter kann nur aus verfügbaren shelves auswählen
+{chooseShelf(N) : available(N), product(P, N)} = 1 :- order(P, _).
+goal(X, Y, 1) :- chooseShelf(N), shelf(X, Y, N).
+%{goal(X, Y, 1) : shelf(X, Y, N), available(N)} = 1. % roboter kann nur aus verfügbaren shelves auswählen
 % im moment immer nur ein shelf verfügbar
 goal(X, Y, 2) :- order(P, S), station(X, Y, S).
 goal(X, Y, 3) :- goal(X, Y, 1).
@@ -64,3 +66,4 @@ goal(X, Y, 3) :- goal(X, Y, 1).
 #show pos/3.
 #show carries/1.
 #show block/2.
+#show chooseShelf/1.
