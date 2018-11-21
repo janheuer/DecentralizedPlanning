@@ -35,20 +35,20 @@ class Robot(object):
         self.prg = clingo.Control()
         self.prg.load(encoding)
         self.prg.load(instance)
-        self.prg.ground([("base", [])]) #time
+        self.prg.ground([("base", []), ("decentralized", [])]) #time
 
         self.plan_finished = False
 
     def solve(self):
         self.model = []
-        self.prg.assign_external(clingo.Function("start", self.start), False)
-        self.prg.assign_external(clingo.Function("start", self.pos), True)
+        self.prg.assign_external(clingo.Function("start", [self.start[0],self.start[1],1]), False)
+        self.prg.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), True)
         self.start[0] = self.pos[0]
         self.start[1] = self.pos[1]
         self.plan_finished = False
 
-        self.prg.assign_external(clingo.Function("pickup", [0]), self.pickupdone)
-        self.prg.assign_external(clingo.Function("deliver", [0]), self.deliverdone)
+        self.prg.assign_external(clingo.Function("pickup", [0,1]), self.pickupdone)
+        self.prg.assign_external(clingo.Function("deliver", [0,1]), self.deliverdone)
 
         if self.shelf != -1:
             for shelf in self.available_shelves:
@@ -95,7 +95,7 @@ class Robot(object):
             if name == "putdown":
                 self.pickupdone = False
                 self.deliverdone = False
-                self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2]]), False)
+                self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
                 for shelf in self.available_shelves:
                     self.prg.assign_external(clingo.Function("available", [shelf]), False)
             else:
@@ -119,7 +119,7 @@ class Robot(object):
         self.order[1] = product
         self.order[2] = station
         self.available_shelves = available_shelves
-        self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2]]), True)
+        self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), True)
         for shelf in self.available_shelves:
             self.prg.assign_external(clingo.Function("available", [shelf]), True)
 
