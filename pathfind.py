@@ -26,7 +26,7 @@ class Pathfind(object):
         self.prg.load(instance)
         if self.benchmark:
             ts = time()
-        self.prg.ground([("base", [])]) #time
+        self.prg.ground([("base", [])])
         if self.benchmark:
             tf = time()
             t = tf-ts
@@ -175,38 +175,67 @@ class Pathfind(object):
 
     def assign_order(self, robot):
         possible_shelves = []
+
+        # auswählen der ersten ausführbaren order
         o = -1
-        while possible_shelves == []:
+        possible_order = False
+        while not possible_order:
             o += 1
+            # alle shleves die das produkt haben
             possible_shelves = [shelf for [id, shelf] in self.products if id == self.orders[o][1]]
+            # entfernen der shelves die bereits benutzt werden
             for id in self.used_shelves:
                 if id in possible_shelves:
                     possible_shelves.remove(id)
-        robot.set_order(self.orders[o][0], self.orders[o][1], self.orders[o][2], possible_shelves)
-        self.orders_in_delivery.append(self.orders[o])
-        self.orders.remove(self.orders[o])
+            # wenn es mögliche shleves gibt ist order ausführbar
+            if possible_shelves != []:
+                possible_order = True
+            # order ist nicht ausführbar -> gibt es noch nicht überprüfte orders?
+            elif o == len(self.orders)-1:
+                # falls keine weiteren orders vorhanden sind kann keine order zegeordnet werden
+                break
+        if possible_order:
+            robot.set_order(self.orders[o][0], self.orders[o][1], self.orders[o][2], possible_shelves)
+            self.orders_in_delivery.append(self.orders[o])
+            self.orders.remove(self.orders[o])
+        return possible_order
 
     def perform_action(self, robot):
         self.state[robot.pos[0]-1][robot.pos[1]-1] = 1
         name, args = robot.action()
         if name == "":
-            return
-        if self.output is not None:
+            # roboter hat in diesem timestep nichts zu tun:
+            # 1) es sind keine orders mehr vorhanden
+            # oder
+            # 2) im letzen timestep konnte keine order zugeteielt werden
+            if self.orders != []:
+                if self.assign_order(robot): # falls order assignd wurde neuen plan finden
+                    print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
+                    if self.benchmark:
+                        ts = time()
+                    robot.solve()
+                    self.used_shelves.append(robot.shelf)
+                    if self.benchmark:
+                        tf = time()
+                        t = tf-ts
+                        self.solve_times.append(t)
+                        print("Solve time = %s" %(t))
+        if (self.output is not None) and (name!=""):
             self.sim.add(robot.id, name, args, self.t)
         if name == "putdown":
             self.update_orders(robot.order, robot.shelf)
             if self.orders != []:
-                self.assign_order(robot)
-                print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
-                if self.benchmark:
-                    ts = time()
-                robot.solve()
-                self.used_shelves.append(robot.shelf)
-                if self.benchmark:
-                    tf = time()
-                    t = tf-ts
-                    self.solve_times.append(t)
-                    print("Solve time = %s" %(t))
+                if self.assign_order(robot):
+                    print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
+                    if self.benchmark:
+                        ts = time()
+                    robot.solve()
+                    self.used_shelves.append(robot.shelf)
+                    if self.benchmark:
+                        tf = time()
+                        t = tf-ts
+                        self.solve_times.append(t)
+                        print("Solve time = %s" %(t))
         self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
 
     def update_orders(self, order, shelf):
@@ -242,10 +271,16 @@ class Pathfind(object):
 if __name__ == "__main__":
     output = "print" # "viz" | "print" | None
     benchmark = False # True | False
+    # zu messen:
+    # zeit init + run + gesmatzeit
+    # zeit grouden in pathfind + grounden in robot + gesmatzeit
+    # zeit initiales solven + gesamtzeit
+    # zeit resolving + gesamtzeit + anzahl resolving
+    # gesamtzeit des plans
 
     if benchmark:
         t1 = time()
-    pathfind = Pathfind('./instance.lp', './pathfind.lp', output, benchmark)
+    pathfind = Pathfind('./instances/instance2.lp', './pathfind.lp', output, benchmark)
     if benchmark:
         t2 = time()
         initTime = t2-t1
@@ -283,8 +318,3 @@ if __name__ == "__main__":
             resolveTime += t
         print("Total resolve time = %s" %(resolveTime))
         print("Total time = %s" %(initTime+runTime))
-
-    # zeit grounden
-    # gesamtzeit grounden
-    # gesamtzeit solven
-    # alles gesamtzeit
