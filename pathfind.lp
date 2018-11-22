@@ -1,17 +1,12 @@
 % Überstzung der spezifizierten Instanzen
 #program centralized.
 robot(R) : init(object(robot, R), value(at, (_, _))).
+available(N) :- init(object(shelf,N),value(at,(X,Y))).
+start(X, Y, R) :- init(object(robot, R), value(at, (X, Y))).
 
 #program decentralized.
 robot(1).
-
-#program base.
 #external available(N) : init(object(shelf,N),value(at,(X,Y))).
-shelf(X, Y, N) :- init(object(shelf,N),value(at,(X,Y))).
-station(X, Y, N) :- init(object(pickingStation,N),value(at,(X,Y))).
-product(N, S) :- init(object(product,N),value(on,(S,_))).
-node(X, Y) :- init(object(node, _), value(at, (X, Y))).
-highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
 #external start(X, Y, R) : init(object(node, _), value(at, (X, Y))), robot(R).
 #external order(P, S, R, N) : init(object(order, N), value(line, (P, A))), init(object(order, N), value(pickingStation, S)), robot(R). % external damit bestellungen zugeordnet werden können
 % bei erneutem solven (weil weg blockiert war) muss festgelegt werden was bereits erledigt wurde
@@ -19,8 +14,13 @@ highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
 #external deliver(0, R) : robot(R).
 #external block(X, Y) : node(X, Y).
 
+#program base.
+shelf(X, Y, N) :- init(object(shelf,N),value(at,(X,Y))).
+station(X, Y, N) :- init(object(pickingStation,N),value(at,(X,Y))).
+product(N, S) :- init(object(product,N),value(on,(S,_))).
+node(X, Y) :- init(object(node, _), value(at, (X, Y))).
+highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
 
-time(1..30).
 
 pos(X, Y, 0, R) :- start(X, Y, R).
 dir(1, 0). dir(-1,0). dir(0, 1). dir(0, -1).
@@ -44,6 +44,7 @@ action(T, R) :- {pickup(T, R); deliver(T, R, _, _); putdown(T, R)} = 1, time(T),
 :- pos(X, Y, T, R1), pos(X, Y, T, R2), R1 != R2.
 :- pos(X1, Y, T, R1), pos(X2, Y, T, R2), pos(X2, Y, T+1, R1), pos(X1, Y, T+1, R2), R1 != R2, X1 != X2.
 :- pos(X, Y1, T, R1), pos(X, Y2, T, R2), pos(X, Y2, T+1, R1), pos(X, Y1, T+1, R2), R1 != R2, Y1 != Y2.
+:- chooseShelf(N, R1), chooseShelf(N, R2), R1 != R2.
 
 pickup(T, R) :- pos(X, Y, T-1, R), goal(X, Y, 1, R), not putdown(T, R), not pickup(T-1, R), not putdown(T-1, R), not carries(T-1, R), robot(R).
 :- not pickup(_, R), robot(R).
