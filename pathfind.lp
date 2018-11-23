@@ -2,6 +2,7 @@
 #program centralized.
 start(X, Y, R) :- init(object(robot,R),value(at,(X,Y))).
 robot(R) :- init(object(robot,R),value(at,(X,Y))).
+available(N) :- init(object(shelf,N),value(at,(X,Y))).
 
 #program decentralized.
 robot(1).
@@ -10,7 +11,7 @@ robot(1).
 #external order(P, S, R, N) : init(object(order, N), value(line, (P, A))), init(object(order, N), value(pickingStation, S)), robot(R). % external damit bestellungen zugeordnet werden können
 % bei erneutem solven (weil weg blockiert war) muss festgelegt werden was bereits erledigt wurde
 #external pickup(0, R) : robot(R).
-#external deliver(0, R) : robot(R).
+#external deliver(0, R, P, N) : robot(R), order(P, S, R, N).
 #external block(X, Y) : node(X, Y).
 
 #program base.
