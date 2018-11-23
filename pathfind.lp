@@ -20,6 +20,9 @@ product(N, S) :- init(object(product,N),value(on,(S,_))).
 node(X, Y) :- init(object(node, _), value(at, (X, Y))).
 highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
 
+size(XM, YM) :- #max{X : node(X, _)} = XM, #max{Y : node(_, Y)} = YM.
+horizon(T) :- size(XM, YM), T = 3*XM+2*YM.
+time(1..T) :- horizon(T).
 
 pos(X, Y, 0, R) :- start(X, Y, R).
 dir(1, 0). dir(-1,0). dir(0, 1). dir(0, -1).
