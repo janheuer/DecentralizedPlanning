@@ -61,7 +61,7 @@ putdown(T, R) :- pos(X, Y, T-1, R), goal(X, Y, 3, R), deliver(T2, R, _, _), T > 
 #minimize{1,T : move(X, Y, T, R)}.
 
 
-{chooseShelf(N, R) : available(N), product(P, N)} :- order(P, _, R, _), robot(R).
+{chooseShelf(N, R) : available(N), product(P, N)}=1 :- order(P, _, R, _), robot(R).
 :- robot(R), not chooseShelf(_, R).
 goal(X, Y, 1, R) :- chooseShelf(N, R), shelf(X, Y, N).
 goal(X, Y, 2, R) :- order(P, S, R, _), station(X, Y, S).
