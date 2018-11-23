@@ -14,19 +14,17 @@ robot(1).
 #external block(X, Y) : node(X, Y).
 
 #program base.
+%
 shelf(X, Y, N) :- init(object(shelf,N),value(at,(X,Y))).
 station(X, Y, N) :- init(object(pickingStation,N),value(at,(X,Y))).
 product(N, S) :- init(object(product,N),value(on,(S,_))).
 node(X, Y) :- init(object(node, _), value(at, (X, Y))).
 highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
 
-size(XM, YM) :- #max{X : node(X, _)} = XM, #max{Y : node(_, Y)} = YM.
-horizon(T) :- size(XM, YM), T = 3*XM+2*YM.
-time(1..T) :- horizon(T).
 
 pos(X, Y, 0, R) :- start(X, Y, R).
 dir(1, 0). dir(-1,0). dir(0, 1). dir(0, -1).
-pos(X+DX, Y+DY, T, R) :- pos(X, Y, T-1, R), move(DX, DY, T, R), robot(R).
+pos(X+DX, Y+DY, T, R) :- pos(X, Y, T-1, R), move(DX, DY, T, R), robot(R), X > 0, Y > 0.
 
 
 {move(X, Y, T, R) : dir(X, Y)} <= 1 :- pos(PX, PY, T-1, R), node(PX, PY), time(T), not action(T, R), robot(R).
@@ -62,7 +60,7 @@ putdown(T, R) :- pos(X, Y, T-1, R), goal(X, Y, 3, R), deliver(T2, R, _, _), T > 
 #minimize{1,T : move(X, Y, T, R)}.
 
 
-{chooseShelf(N, R) : available(N), product(P, N)} = 1 :- order(P, _, R, _), robot(R).
+{chooseShelf(N, R) : available(N), product(P, N)} :- order(P, _, R, _), robot(R).
 :- robot(R), not chooseShelf(_, R).
 goal(X, Y, 1, R) :- chooseShelf(N, R), shelf(X, Y, N).
 goal(X, Y, 2, R) :- order(P, S, R, _), station(X, Y, S).
