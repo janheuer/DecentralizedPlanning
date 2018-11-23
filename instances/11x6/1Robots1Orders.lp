@@ -13,7 +13,7 @@
 
 #program base.
 
-time(1..30).
+time(1..45). % 3*X+2*Y
 
 % init
 init(object(highway,1),value(at,(1,1))).

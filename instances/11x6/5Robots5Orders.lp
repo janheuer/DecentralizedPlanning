@@ -131,6 +131,12 @@ init(object(order,1),value(line,(2,11))).
 init(object(order,1),value(pickingStation,1)).
 init(object(order,2),value(line,(4,1))).
 init(object(order,2),value(pickingStation,2)).
+init(object(order,3),value(line,(1,2))).
+init(object(order,3),value(pickingStation,2)).
+init(object(order,4),value(line,(5,2))).
+init(object(order,4),value(pickingStation,1)).
+init(object(order,5),value(line,(3,2))).
+init(object(order,5),value(pickingStation,2)).
 init(object(pickingStation,1),value(at,(4,1))).
 init(object(pickingStation,2),value(at,(8,1))).
 init(object(product,1),value(on,(9,4))).
@@ -145,6 +151,9 @@ init(object(product,5),value(on,(1,10))).
 init(object(product,5),value(on,(2,10))).
 init(object(robot,1),value(at,(1,6))).
 init(object(robot,2),value(at,(2,6))).
+init(object(robot,3),value(at,(3,6))).
+init(object(robot,4),value(at,(4,6))).
+init(object(robot,5),value(at,(5,6))).
 init(object(shelf,1),value(at,(3,3))).
 init(object(shelf,2),value(at,(5,3))).
 init(object(shelf,3),value(at,(7,3))).
