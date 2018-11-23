@@ -1,8 +1,7 @@
 % Überstzung der spezifizierten Instanzen
 #program centralized.
-robot(R) : init(object(robot, R), value(at, (_, _))).
-available(N) :- init(object(shelf,N),value(at,(X,Y))).
-start(X, Y, R) :- init(object(robot, R), value(at, (X, Y))).
+start(X, Y, R) :- init(object(robot,R),value(at,(X,Y))).
+robot(R) :- init(object(robot,R),value(at,(X,Y))).
 
 #program decentralized.
 robot(1).
@@ -61,6 +60,7 @@ putdown(T, R) :- pos(X, Y, T-1, R), goal(X, Y, 3, R), deliver(T2, R, _, _), T > 
 
 
 {chooseShelf(N, R) : available(N), product(P, N)} = 1 :- order(P, _, R, _), robot(R).
+:- robot(R), not chooseShelf(_, R).
 goal(X, Y, 1, R) :- chooseShelf(N, R), shelf(X, Y, N).
 goal(X, Y, 2, R) :- order(P, S, R, _), station(X, Y, S).
 goal(X, Y, 3, R) :- goal(X, Y, 1, R).

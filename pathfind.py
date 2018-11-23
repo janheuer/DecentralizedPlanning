@@ -31,9 +31,15 @@ class Pathfind(object):
             tf = time()
             t = tf-ts
             self.ground_times.append(t)
-            print("Ground time = %s" %(t))
+            print("IGt=%s," %(t)), # Initial Ground time
         self.state = [] # zum speichern auf welchen positionen roboter stehen
+        if self.benchmark:
+            ts = time()
         self.parse_instance()
+        if self.benchmark:
+            tf = time()
+            t = tf-ts
+            print("Pt=%s," %(t)), # Parse time
         # nodes: [[id, x, y]]
         # highways: [[id, x, y]]
         # robots: [robot]
@@ -52,14 +58,16 @@ class Pathfind(object):
         elif self.output == "print":
             self.sim = printer.Printer() # keine verwendung des visualizers, statt dessen print ausgaben
 
-        if self.output is not None:
-            self.sim.add_inits(self.get_inits())
+        if not benchmark:
+            if self.output is not None:
+                self.sim.add_inits(self.get_inits())
 
         # initialisieren der roboter
         for robot in self.robots:
             robot.update_state(self.state)
             self.assign_order(robot)
-            print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
+            if not self.benchmark:
+                print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
             if self.benchmark:
                 ts = time()
             robot.solve()
@@ -67,7 +75,7 @@ class Pathfind(object):
                 tf = time()
                 t = tf-ts
                 self.solve_times.append(t)
-                print("Solve time = %s" %(t))
+                print("St=%s," %(t)), # Solve time
             self.used_shelves.append(robot.shelf)
 
     def run(self):
@@ -80,7 +88,8 @@ class Pathfind(object):
                 else:
                     # todo: wenn roboter auf pickingstation bewegen will, neu solven nicht sinnvoll
                     # statdessen warten bis pickingstation wieder frei
-                    print("robot"+str(robot.id)+" replanning at t="+str(self.t))
+                    if not self.benchmark:
+                        print("robot"+str(robot.id)+" replanning at t="+str(self.t))
                     if self.benchmark:
                         ts = time()
                     robot.solve()
@@ -89,13 +98,13 @@ class Pathfind(object):
                         tf = time()
                         t = tf-ts
                         self.resolve_times.append(t)
-                        print("Resolve time = %s" %(t))
+                        print("Rst=%s," %(t)), # Resolve time
                     self.perform_action(robot)
         # visualization starten
         if self.output == "viz":
             self.sim.run(self.t)
         if benchmark:
-            print("Total plan length = "+str(self.t))
+            print("Tpl="+str(self.t)+","), # Total plan length
 
     def parse_instance(self):
         self.nodes = []
@@ -107,6 +116,8 @@ class Pathfind(object):
         self.shelves = []
         self.products = []
 
+        if self.benchmark:
+                ts = time()
         with self.prg.solve(yield_=True) as h:
             # optimales modell auswaehlen
             for m in h:
@@ -135,7 +146,7 @@ class Pathfind(object):
                             tf = time()
                             t = tf-ts
                             self.ground_times.append(t)
-                            print("Ground time = %s" %(t))
+                            print("Gt=%s," %(t)), # Ground time
                     elif name == "order":
                         id = atom.arguments[0].arguments[1].number
                         if atom.arguments[1].arguments[0].name == "line":
@@ -160,6 +171,11 @@ class Pathfind(object):
                         y = atom.arguments[1].arguments[1].arguments[1].number
                         self.shelves.append([id,x,y])
 
+        if self.benchmark:
+            tf = time()
+            t = tf-ts
+            print("ISt=%s," %(t)), # Initial solve time
+        
         # pickingstations zu orders zuteilen
         for order in self.orders:
             order.append(order_stations[order[0]])
@@ -210,7 +226,8 @@ class Pathfind(object):
             # 2) im letzen timestep konnte keine order zugeteielt werden
             if self.orders != []:
                 if self.assign_order(robot): # falls order assignd wurde neuen plan finden
-                    print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
+                    if not self.benchmark:
+                        print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
                     if self.benchmark:
                         ts = time()
                     robot.solve()
@@ -219,14 +236,16 @@ class Pathfind(object):
                         tf = time()
                         t = tf-ts
                         self.solve_times.append(t)
-                        print("Solve time = %s" %(t))
+                        print("St=%s," %(t)), # Solve time
         if (self.output is not None) and (name!=""):
-            self.sim.add(robot.id, name, args, self.t)
+            if not benchmark:
+                self.sim.add(robot.id, name, args, self.t)
         if name == "putdown":
             self.update_orders(robot.order, robot.shelf)
             if self.orders != []:
                 if self.assign_order(robot):
-                    print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
+                    if not self.benchmark:
+                        print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
                     if self.benchmark:
                         ts = time()
                     robot.solve()
@@ -235,7 +254,7 @@ class Pathfind(object):
                         tf = time()
                         t = tf-ts
                         self.solve_times.append(t)
-                        print("Solve time = %s" %(t))
+                        print("St=%s," %(t)),
         self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
 
     def update_orders(self, order, shelf):
@@ -270,7 +289,7 @@ class Pathfind(object):
 
 if __name__ == "__main__":
     output = "print" # "viz" | "print" | None
-    benchmark = False # True | False
+    benchmark = True # True | False
     # zu messen:
     # zeit init + run + gesmatzeit
     # zeit grouden in pathfind + grounden in robot + gesmatzeit
@@ -284,18 +303,18 @@ if __name__ == "__main__":
     if benchmark:
         t2 = time()
         initTime = t2-t1
-        print("Init time = %s" %(initTime))
+        print("It=%s," %(initTime)), # Initial time
 
     if benchmark:
         groundTime = 0
         for t in pathfind.ground_times:
             groundTime += t
-        print("Total ground time = %s" %(groundTime))
+        print("Tgt=%s," %(groundTime)), #Total ground time
 
         solveTimeInit = 0
         for t in pathfind.solve_times:
             solveTimeInit += t
-        print("Total solve time in init= %s" %(solveTimeInit))
+        print("TstI=%s," %(solveTimeInit)), # Total solve time in Init
         pathfind.solve_times = []
 
     if benchmark:
@@ -304,17 +323,17 @@ if __name__ == "__main__":
     if benchmark:
         t2 = time()
         runTime = t2-t1
-        print("Run time = %s" %(runTime))
+        print("Rt=%s," %(runTime)), # Run time
 
     if benchmark:
         solveTimeRun = 0
         for t in pathfind.solve_times:
             solveTimeRun += t
-        print("Total solve time in run = %s" %(solveTimeRun))
-        print("Total solve time = %s" %(solveTimeInit+solveTimeRun))
+        print("TstR=%s," %(solveTimeRun)), # Total solve time in run
+        print("Tst=%s," %(solveTimeInit+solveTimeRun)), # Total solve time
 
         resolveTime = 0
         for t in pathfind.resolve_times:
             resolveTime += t
-        print("Total resolve time = %s" %(resolveTime))
-        print("Total time = %s" %(initTime+runTime))
+        print("Trst=%s," %(resolveTime)), # Total resolve time
+        print("Tt=%s," %(initTime+runTime)), # Total time
