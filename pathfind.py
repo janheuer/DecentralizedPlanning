@@ -66,18 +66,18 @@ class Pathfind(object):
         # initialisieren der roboter
         for robot in self.robots:
             robot.update_state(self.state)
-            self.assign_order(robot)
-            if not self.benchmark:
-                print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
-            if self.benchmark:
-                ts = time()
-            robot.solve()
-            if self.benchmark:
-                tf = time()
-                t = tf-ts
-                self.solve_times.append(t)
-                print("St=%s," %(t)), # Solve time
-            self.used_shelves.append(robot.shelf)
+            if self.assign_order(robot):
+                if not self.benchmark:
+                    print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
+                if self.benchmark:
+                    ts = time()
+                robot.solve()
+                if self.benchmark:
+                    tf = time()
+                    t = tf-ts
+                    self.solve_times.append(t)
+                    print("St=%s," %(t)), # Solve time
+                self.used_shelves.append(robot.shelf)
 
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
@@ -94,7 +94,6 @@ class Pathfind(object):
                     if self.benchmark:
                         ts = time()
                     robot.solve()
-                    self.used_shelves.append(robot.shelf)
                     if self.benchmark:
                         tf = time()
                         t = tf-ts
@@ -176,7 +175,7 @@ class Pathfind(object):
             tf = time()
             t = tf-ts
             print("ISt=%s," %(t)), # Initial solve time
-        
+
         # pickingstations zu orders zuteilen
         for order in self.orders:
             order.append(order_stations[order[0]])
