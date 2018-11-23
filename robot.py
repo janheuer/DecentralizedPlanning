@@ -35,9 +35,9 @@ class Robot(object):
         self.prg = clingo.Control()
         self.prg.load(encoding)
         self.prg.load(instance)
-        self.prg.ground([("base", []), ("decentralized", [])]) #time
+        self.prg.ground([("base", []), ("decentralized", [])])
 
-        self.plan_finished = False
+        self.plan_finished = True
 
     def solve(self):
         self.model = []
@@ -48,7 +48,7 @@ class Robot(object):
         self.plan_finished = False
 
         self.prg.assign_external(clingo.Function("pickup", [0,1]), self.pickupdone)
-        self.prg.assign_external(clingo.Function("deliver", [0,1]), self.deliverdone)
+        self.prg.assign_external(clingo.Function("deliver", [0,1, self.order[1], self.order[0]]), self.deliverdone)
 
         if self.shelf != -1:
             for shelf in self.available_shelves:
@@ -66,6 +66,7 @@ class Robot(object):
                 self.model.append(atom)
                 if atom.name == "chooseShelf":
                     self.shelf = atom.arguments[0].number
+                    #print("robot"+str(self.id)+" chooseShelf"+str(self.shelf))
 
         self.t = 0
         self.get_next_action()
@@ -95,6 +96,7 @@ class Robot(object):
             if name == "putdown":
                 self.pickupdone = False
                 self.deliverdone = False
+                self.prg.assign_external(clingo.Function("deliver", [0,1, self.order[1], self.order[0]]), self.deliverdone)
                 self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
                 for shelf in self.available_shelves:
                     self.prg.assign_external(clingo.Function("available", [shelf]), False)
@@ -142,6 +144,8 @@ class Robot(object):
     def action_possible(self):
         # 1 = kann auf feld begehen
         # 0 = kann nicht auf feld begehen
+        if self.plan_finished:
+            return True
         if self.next_action.name == "move":
             # next_pos ist kein blockiertes feld
             return self.state[self.next_pos[0]-1][self.next_pos[1]-1]
