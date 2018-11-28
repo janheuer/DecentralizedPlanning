@@ -239,6 +239,7 @@ class Pathfind(object):
                         t = tf-ts
                         self.solve_times.append(t)
                         print("St=%s," %(t)), # solve time
+                        print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
         if (self.output is not None) and (name!=""):
             if not benchmark:
                 self.sim.add(robot.id, name, args, self.t)
@@ -257,6 +258,7 @@ class Pathfind(object):
                         t = tf-ts
                         self.solve_times.append(t)
                         print("St=%s," %(t)), # Solve Time
+                        print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
         self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
 
     def update_orders(self, order, shelf):
