@@ -25,7 +25,7 @@ highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
 
 pos(X, Y, 0, R) :- start(X, Y, R).
 dir(1, 0). dir(-1,0). dir(0, 1). dir(0, -1).
-pos(X+DX, Y+DY, T, R) :- pos(X, Y, T-1, R), move(DX, DY, T, R), robot(R), X > 0, Y > 0.
+pos(X+DX, Y+DY, T, R) :- pos(X, Y, T-1, R), move(DX, DY, T, R), robot(R), node(X+DX, Y+DY).
 
 
 {move(X, Y, T, R) : dir(X, Y)} <= 1 :- pos(PX, PY, T-1, R), node(PX, PY), time(T), not action(T, R), robot(R).
