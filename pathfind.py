@@ -32,7 +32,7 @@ class Pathfind(object):
             tf = time()
             t = tf-ts
             self.ground_times.append(t)
-            print("IGt=%s," %(t)), # Initial Ground time
+            print("PGt=%s," %(t)), # Parsing Ground time
         self.state = [] # zum speichern auf welchen positionen roboter stehen
         if self.benchmark:
             ts = time()
@@ -76,8 +76,8 @@ class Pathfind(object):
                     tf = time()
                     t = tf-ts
                     self.solve_times.append(t)
-                    print("St=%s," %(t)), # Solve time
-                    print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",")
+                    print("Ist=%s," %(t)), # Init Solve time
+                    print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
                 self.used_shelves.append(robot.shelf)
 
     def run(self):
@@ -100,7 +100,7 @@ class Pathfind(object):
                         t = tf-ts
                         self.solve_times.append(t)
                         print("Rst=%s," %(t)), # Resolve time
-                        print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",")
+                        print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
                     self.perform_action(robot)
         # visualization starten
         if self.output == "viz":
@@ -148,7 +148,7 @@ class Pathfind(object):
                             tf = time()
                             t = tf-ts
                             self.ground_times.append(t)
-                            print("Gt=%s," %(t)), # Ground time
+                            print("Igt=%s," %(t)), # Init Ground time
                     elif name == "order":
                         id = atom.arguments[0].arguments[1].number
                         if atom.arguments[1].arguments[0].name == "line":
@@ -176,7 +176,7 @@ class Pathfind(object):
         if self.benchmark:
             tf = time()
             t = tf-ts
-            print("Pst=%s," %(t)), # Parsing solve time
+            print("PSt=%s," %(t)), # Parsing solve time
 
         # pickingstations zu orders zuteilen
         for order in self.orders:
@@ -238,7 +238,7 @@ class Pathfind(object):
                         tf = time()
                         t = tf-ts
                         self.solve_times.append(t)
-                        print("St=%s," %(t)), # Solve time
+                        print("St=%s," %(t)), # solve time
         if (self.output is not None) and (name!=""):
             if not benchmark:
                 self.sim.add(robot.id, name, args, self.t)
@@ -256,7 +256,7 @@ class Pathfind(object):
                         tf = time()
                         t = tf-ts
                         self.solve_times.append(t)
-                        print("St=%s," %(t)),
+                        print("St=%s," %(t)), # Solve Time
         self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
 
     def update_orders(self, order, shelf):
