@@ -11,7 +11,7 @@ import simulatorCostum
 import printer
 import robot
 from time import time
-import sys
+import argparse
 
 class Pathfind(object):
     def __init__(self, instance, encoding, output, benchmark):
@@ -77,6 +77,7 @@ class Pathfind(object):
                     t = tf-ts
                     self.solve_times.append(t)
                     print("St=%s," %(t)), # Solve time
+                    print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",")
                 self.used_shelves.append(robot.shelf)
 
     def run(self):
@@ -97,8 +98,9 @@ class Pathfind(object):
                     if self.benchmark:
                         tf = time()
                         t = tf-ts
-                        self.resolve_times.append(t)
+                        self.solve_times.append(t)
                         print("Rst=%s," %(t)), # Resolve time
+                        print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",")
                     self.perform_action(robot)
         # visualization starten
         if self.output == "viz":
@@ -174,7 +176,7 @@ class Pathfind(object):
         if self.benchmark:
             tf = time()
             t = tf-ts
-            print("ISt=%s," %(t)), # Initial solve time
+            print("Pst=%s," %(t)), # Parsing solve time
 
         # pickingstations zu orders zuteilen
         for order in self.orders:
@@ -297,9 +299,18 @@ if __name__ == "__main__":
     # zeit resolving + gesamtzeit + anzahl resolving
     # gesamtzeit des plans
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("instance", help = "The instance to be loaded")
+    parser.add_argument("-b","--benchmark", help="Use benchmark output",
+                    action="store_true")
+    args = parser.parse_args()
+    if args.benchmark:
+        benchmark = True
+        output = None
+    
     if benchmark:
         t1 = time()
-    pathfind = Pathfind(str(sys.argv[1]), './pathfind.lp', output, benchmark)
+    pathfind = Pathfind(args.instance, './pathfind.lp', output, benchmark)
     if benchmark:
         t2 = time()
         initTime = t2-t1
