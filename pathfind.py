@@ -99,6 +99,7 @@ class Pathfind(object):
                         tf = time()
                         t = tf-ts
                         self.solve_times.append(t)
+                        self.resolve_times.append(t)
                         print("Rst=%s," %(t)), # Resolve time
                         print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
                     self.perform_action(robot)
