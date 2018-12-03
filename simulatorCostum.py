@@ -2,8 +2,17 @@ from simulator import *
 
 class SimulatorCostum(Simulator):
     def __init__(self):
-        super(Simulator, self).__init__()
+        self._host = '127.0.0.1'
         self._port = 5001
+        self._socket = None
+        self._connection = None
+
+        self._reset = False
+        self._raw_data = ''
+        self._data = []
+        self._to_send = {}
+        self._sended = -1
+
         self._name = 'simulator'
         self._viz_done = -1 # which steps is already visualized
         self._steps = -1 # how many steps have to be visualized
