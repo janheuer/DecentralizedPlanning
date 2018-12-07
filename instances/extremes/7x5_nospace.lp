@@ -7,6 +7,8 @@
 
 #program base.
 
+time(1..31).
+
 %init
 init(object(node, 3), value(at, (3, 1))).
 init(object(node, 5), value(at, (5, 1))).
