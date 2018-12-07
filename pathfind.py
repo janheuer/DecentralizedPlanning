@@ -66,19 +66,7 @@ class Pathfind(object):
         # initialisieren der roboter
         for robot in self.robots:
             robot.update_state(self.state)
-            if self.assign_order(robot):
-                if not self.benchmark:
-                    print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
-                if self.benchmark:
-                    ts = time()
-                robot.solve()
-                if self.benchmark:
-                    tf = time()
-                    t = tf-ts
-                    self.solve_times.append(t)
-                    print("Ist=%s," %(t)), # Init Solve time
-                    print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
-                self.used_shelves.append(robot.shelf)
+            self.plan(robot)
 
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
@@ -88,21 +76,9 @@ class Pathfind(object):
                 if robot.action_possible():
                     self.perform_action(robot)
                 else:
-                    # todo: wenn roboter auf pickingstation bewegen will, neu solven nicht sinnvoll
-                    # statdessen warten bis pickingstation wieder frei
-                    if not self.benchmark:
-                        print("robot"+str(robot.id)+" replanning at t="+str(self.t))
-                    if self.benchmark:
-                        ts = time()
-                    robot.solve()
-                    if self.benchmark:
-                        tf = time()
-                        t = tf-ts
-                        self.solve_times.append(t)
-                        self.resolve_times.append(t)
-                        print("Rst=%s," %(t)), # Resolve time
-                        print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
-                    self.perform_action(robot)
+                    if self.plan(robot):
+                        self.perform_action(robot)
+
         # visualization starten
         if self.output == "viz":
             self.sim.run(self.t)
@@ -215,8 +191,7 @@ class Pathfind(object):
                 break
         if possible_order:
             robot.set_order(self.orders[o][0], self.orders[o][1], self.orders[o][2], possible_shelves)
-            self.orders_in_delivery.append(self.orders[o])
-            self.orders.remove(self.orders[o])
+            self.reserve_order(self.orders[o])
         return possible_order
 
     def perform_action(self, robot):
@@ -228,43 +203,73 @@ class Pathfind(object):
             # oder
             # 2) im letzen timestep konnte keine order zugeteielt werden
             if self.orders != []:
-                if self.assign_order(robot): # falls order assignd wurde neuen plan finden
-                    if not self.benchmark:
-                        print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
-                    if self.benchmark:
-                        ts = time()
-                    robot.solve()
-                    self.used_shelves.append(robot.shelf)
-                    if self.benchmark:
-                        tf = time()
-                        t = tf-ts
-                        self.solve_times.append(t)
-                        print("St=%s," %(t)), # solve time
-                        print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
+                self.plan(robot)
         if (self.output is not None) and (name!=""):
             if not benchmark:
                 self.sim.add(robot.id, name, args, self.t)
         if name == "putdown":
-            self.update_orders(robot.order, robot.shelf)
+            self.finish_order(robot.order, robot.shelf)
+            robot.release_order()
             if self.orders != []:
-                if self.assign_order(robot):
-                    if not self.benchmark:
-                        print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
-                    if self.benchmark:
-                        ts = time()
-                    robot.solve()
-                    self.used_shelves.append(robot.shelf)
-                    if self.benchmark:
-                        tf = time()
-                        t = tf-ts
-                        self.solve_times.append(t)
-                        print("St=%s," %(t)), # Solve Time
-                        print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
+                self.plan(robot)
         self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
 
-    def update_orders(self, order, shelf):
-        self.used_shelves.remove(shelf)
+    def finish_order(self, order, shelf):
+        # order was completed
+        self.release_shelf(shelf)
         self.orders_in_delivery.remove(order)
+
+    def release_order(self, order):
+        self.orders_in_delivery.remove(order)
+        self.orders.append(order)
+
+    def reserve_order(self, order):
+        self.orders_in_delivery.append(order)
+        self.orders.remove(order)
+
+    def reserve_shelf(self, shelf):
+        if shelf not in self.used_shelves:
+            self.used_shelves.append(shelf)
+
+    def release_shelf(self, shelf):
+        if shelf in self.used_shelves:
+            self.used_shelves.remove(shelf)
+
+    def plan(self, robot):
+        if robot.shelf == -1: # robot doesn't have a order assigned
+            if not self.assign_order(robot): # try to assign a order
+                return False
+            resolve = False
+            if not self.benchmark:
+                print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
+        else:
+            resolve = True
+            if not self.benchmark:
+                print("robot"+str(robot.id)+" replanning at t="+str(self.t))
+
+        if self.benchmark:
+            ts = time()
+        found_plan = robot.solve()
+        if self.benchmark:
+            tf = time()
+            t = tf-ts
+            self.solve_times.append(t)
+            if resolve:
+                self.resolve_times.append(t)
+                print("Rst=%s," %(t)),
+            else:
+                print("St=%s," %(t)),
+            print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
+
+        if found_plan: # if the robot found a plan the shelf has to be reserved
+            self.reserve_shelf(robot.shelf)
+            return True
+        else: # robot couldn't find a plan
+            if robot.shelf == -1:
+                # robot couldn't start planning the order (because he is in a deadlock)
+                # release the order so that other robots can try to plan it
+                self.release_order(robot.order)
+            return False
 
     def get_inits(self):
         # alle inits werden als string zur liste inits hinzugefuegt, diese wird dem simulator uebergebn
@@ -293,8 +298,6 @@ class Pathfind(object):
         return inits
 
 if __name__ == "__main__":
-    output = "print" # "viz" | "print" | None
-    benchmark = False # True | False
     # zu messen:
     # zeit init + run + gesmatzeit
     # zeit grouden in pathfind + grounden in robot + gesmatzeit
@@ -303,14 +306,14 @@ if __name__ == "__main__":
     # gesamtzeit des plans
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("instance", help = "The instance to be loaded")
-    parser.add_argument("-b","--benchmark", help="Use benchmark output",
-                    action="store_true")
+    parser.add_argument("instance", help="the instance to be loaded")
+    parser.add_argument("-b", "--benchmark", help="use benchmark output (set other output to None)", action="store_true", default=False)
+    parser.add_argument("-o", "--output", help="output mode (default=print)", default="print", choices=["print", "viz"])
     args = parser.parse_args()
-    if args.benchmark:
-        benchmark = True
-        output = None
-    
+
+    benchmark = args.benchmark
+    output = args.output if not benchmark else None
+
     if benchmark:
         t1 = time()
     pathfind = Pathfind(args.instance, './pathfind.lp', output, benchmark)
