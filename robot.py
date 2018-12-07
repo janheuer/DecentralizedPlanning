@@ -59,18 +59,31 @@ class Robot(object):
             for j in range(len(self.state[0])):
                 self.prg.assign_external(clingo.Function("block", [i+1,j+1]), not self.state[i][j])
 
+        found_model = False
         with self.prg.solve(yield_=True) as h:
             for m in h:
+                found_model = True
                 opt = m
-            for atom in opt.symbols(shown=True):
-                self.model.append(atom)
-                if atom.name == "chooseShelf":
-                    self.shelf = atom.arguments[0].number
-                    #print("robot"+str(self.id)+" chooseShelf"+str(self.shelf))
+            if found_model:
+                for atom in opt.symbols(shown=True):
+                    self.model.append(atom)
+                    if atom.name == "chooseShelf":
+                        self.shelf = atom.arguments[0].number
+                        #print("robot"+str(self.id)+" chooseShelf"+str(self.shelf))
 
-        self.t = 0
-        self.get_next_action()
-        self.t = 1
+        if not found_model:
+            self.next_action = None
+            if self.shelf == -1:
+                # order freigeben
+                self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
+                for shelf in self.available_shelves:
+                    self.prg.assign_external(clingo.Function("available", [shelf]), False)
+                self.available_shelves = []
+        else:
+            self.t = 0
+            self.get_next_action()
+            self.t = 1
+        return found_model
 
     def get_next_action(self):
         next_action = False
@@ -97,9 +110,9 @@ class Robot(object):
                 self.pickupdone = False
                 self.deliverdone = False
                 self.prg.assign_external(clingo.Function("deliver", [0,1, self.order[1], self.order[0]]), self.deliverdone)
-                self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
-                for shelf in self.available_shelves:
-                    self.prg.assign_external(clingo.Function("available", [shelf]), False)
+                #self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
+                #for shelf in self.available_shelves:
+                #    self.prg.assign_external(clingo.Function("available", [shelf]), False)
             else:
                 if name == "move":
                     self.pos[0] = self.next_pos[0]
@@ -125,6 +138,12 @@ class Robot(object):
         for shelf in self.available_shelves:
             self.prg.assign_external(clingo.Function("available", [shelf]), True)
 
+    def release_order(self):
+        self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
+        for shelf in self.available_shelves:
+            self.prg.assign_external(clingo.Function("available", [shelf]), False)
+        self.shelf = -1
+
     def update_state(self, state):
         if self.state == []:
             for i in range(len(state)):
@@ -146,6 +165,8 @@ class Robot(object):
         # 0 = kann nicht auf feld begehen
         if self.plan_finished:
             return True
+        if self.next_action is None:
+            return False
         if self.next_action.name == "move":
             # next_pos ist kein blockiertes feld
             return self.state[self.next_pos[0]-1][self.next_pos[1]-1]
