@@ -14,9 +14,10 @@ from time import time
 import argparse
 
 class Pathfind(object):
-    def __init__(self, instance, encoding, output, benchmark):
+    def __init__(self, instance, encoding, output, benchmark, solve_output):
         self.output = output
         self.benchmark = benchmark
+        self.solve_output = solve_output
         self.ground_times = []
         self.solve_times = []
         self.resolve_times = []
@@ -240,11 +241,11 @@ class Pathfind(object):
             if not self.assign_order(robot): # try to assign a order
                 return False
             resolve = False
-            if not self.benchmark:
+            if self.solve_output:
                 print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
         else:
             resolve = True
-            if not self.benchmark:
+            if self.solve_output:
                 print("robot"+str(robot.id)+" replanning at t="+str(self.t))
 
         if self.benchmark:
@@ -307,16 +308,18 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("instance", help="the instance to be loaded")
-    parser.add_argument("-b", "--benchmark", help="use benchmark output (set other output to None)", action="store_true", default=False)
-    parser.add_argument("-o", "--output", help="output mode (default=print)", default="print", choices=["print", "viz"])
+    parser.add_argument("-b", "--benchmark", help="use benchmark output (set other output to None)", default=False, action="store_true")
+    parser.add_argument("-o", "--output", help="output mode (default=print)", choices=["print", "viz"], default="print", )
+    parser.add_argument("-n", "--nosolve", help="turns off output when a robot solves/resolves", default=False, action="store_true")
     args = parser.parse_args()
 
     benchmark = args.benchmark
     output = args.output if not benchmark else None
+    solve_output = not args.nosolve if not benchmark else False
 
     if benchmark:
         t1 = time()
-    pathfind = Pathfind(args.instance, './pathfind.lp', output, benchmark)
+    pathfind = Pathfind(args.instance, './pathfind.lp', output, benchmark, solve_output)
     if benchmark:
         t2 = time()
         initTime = t2-t1
