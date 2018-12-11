@@ -1,9 +1,9 @@
 from simulator import *
 
 class SimulatorCostum(Simulator):
-    def __init__(self):
+    def __init__(self, port):
         self._host = '127.0.0.1'
-        self._port = 5001
+        self._port = port
         self._socket = None
         self._connection = None
 
