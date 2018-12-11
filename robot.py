@@ -13,12 +13,8 @@ class Robot(object):
 
     def __init__(self, id, start, encoding, instance):
         self.id = id
-        self.start = [-1,-1]
-        self.start[0] = start[0]
-        self.start[1] = start[1]
-        self.pos = [-1,-1]
-        self.pos[0] = start[0]
-        self.pos[1] = start[1]
+        self.start = list(start)
+        self.pos = list(start)
 
         self.next_pos = [-1,-1]
 
@@ -43,8 +39,7 @@ class Robot(object):
         self.model = []
         self.prg.assign_external(clingo.Function("start", [self.start[0],self.start[1],1]), False)
         self.prg.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), True)
-        self.start[0] = self.pos[0]
-        self.start[1] = self.pos[1]
+        self.start = list(self.pos)
         self.plan_finished = False
 
         self.prg.assign_external(clingo.Function("pickup", [0,1]), self.pickupdone)
@@ -69,7 +64,6 @@ class Robot(object):
                     self.model.append(atom)
                     if atom.name == "chooseShelf":
                         self.shelf = atom.arguments[0].number
-                        #print("robot"+str(self.id)+" chooseShelf"+str(self.shelf))
 
         if not found_model:
             self.next_action = None
@@ -110,13 +104,9 @@ class Robot(object):
                 self.pickupdone = False
                 self.deliverdone = False
                 self.prg.assign_external(clingo.Function("deliver", [0,1, self.order[1], self.order[0]]), self.deliverdone)
-                #self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
-                #for shelf in self.available_shelves:
-                #    self.prg.assign_external(clingo.Function("available", [shelf]), False)
             else:
                 if name == "move":
-                    self.pos[0] = self.next_pos[0]
-                    self.pos[1] = self.next_pos[1]
+                    self.pos = list(self.next_pos)
                     args = [action.arguments[0].number, action.arguments[1].number]
                 elif name ==  "pickup":
                     self.pickupdone = True
@@ -127,12 +117,10 @@ class Robot(object):
             self.t += 1
             return name, args
 
-    def set_order(self, id, product, station, available_shelves):
+    def set_order(self, order, available_shelves):
         self.shelf = -1
 
-        self.order[0] = id
-        self.order[1] = product
-        self.order[2] = station
+        self.order = list(order)
         self.available_shelves = available_shelves
         self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), True)
         for shelf in self.available_shelves:
