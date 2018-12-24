@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import clingo
-import simulatorCostum # braucht die Dateien simulator.py und network.py aus visualizer/scripts
+import simulatorCostum # needs simulator.py and network.py from visualizer/scripts
 import printer
 import robot
 from time import time
@@ -15,7 +15,7 @@ class Pathfind(object):
         self.ground_times = []
         self.solve_times = []
         self.resolve_times = []
-        # speichern der instanz in entsprechenden datenstrukturen + erstellen der roboter
+        # save instance in the data strctres and create robot objects
         self.instance = instance
         self.encoding = encoding
         self.prg = clingo.Control()
@@ -28,7 +28,7 @@ class Pathfind(object):
             t = tf-ts
             self.ground_times.append(t)
             print("PGt=%s," %(t)), # Parsing Ground time
-        self.state = [] # zum speichern auf welchen positionen roboter stehen
+        self.state = [] # to save the positions of the robots
         if self.benchmark:
             ts = time()
         self.parse_instance()
@@ -48,16 +48,16 @@ class Pathfind(object):
 
         self.t = 0
 
-        # initialisieren des simulators
+        # initialize output
         if self.output == "viz":
             self.sim = simulatorCostum.SimulatorCostum(port)
         elif self.output == "print":
-            self.sim = printer.Printer() # keine verwendung des visualizers, statt dessen print ausgaben
+            self.sim = printer.Printer()
 
         if self.output is not None:
             self.sim.add_inits(self.get_inits())
 
-        # initialisieren der roboter
+        # initialize robots
         for robot in self.robots:
             robot.update_state(self.state)
             self.plan(robot)
@@ -73,18 +73,53 @@ class Pathfind(object):
                     if self.plan(robot):
                         self.perform_action(robot)
 
-        # visualization starten
+        # start visualizer
         if self.output == "viz":
             self.sim.run(self.t)
         if benchmark:
             print("Tpl="+str(self.t)+","), # Total plan length
+
+    # new run version for different conflict handling strategies
+    def run2(self):
+        while self.orders != [] or self.orders_in_delivery != []:
+            self.t += 1
+            # get list of all conflicts
+            conflicts = self.get_conflicts()
+
+            # TODO: implement a method for each strategy
+            self.solve_conflicts(conflicts)
+                # handle all conflicts
+                # (i.e. choose one of robot that has to replan for each conflict pair)
+                # at the end of the function the next action of every robot can be performed without conflicts
+                # possible problems: -conflicts with more than two robots
+                #                    -new conflicts after replanning
+
+            for robot in self.robots:
+                self.perform_action(robot)
+
+        # start visualizer
+        if self.output == "viz":
+            self.sim.run(self.t)
+        if benchmark:
+            print("Tpl="+str(self.t)+","), # Total plan length
+
+    def get_conflicts(self):
+        # returns list of tuples of robots which have a conflict
+        conflicts = []
+        for i,r1 in enumerate(self.robots[:-1]):
+            for r2 in self.robots[i+1:]:
+                # robots want to move onto same pos or robots want to swap pos
+                if (r1.next_pos == r2.next_pos) or
+                   ((r1.next_pos == r2.pos) and (r1.pos == r2.next_pos)):
+                    conflicts.append((r1,r2))
+        return conflicts
 
     def parse_instance(self):
         self.nodes = []
         self.highways = []
         self.robots = []
         self.orders = []
-        order_stations = {} # zum zuordnen der orders zu pickingstation benoetigt
+        order_stations = {}
         self.pickingstations = []
         self.shelves = []
         self.products = []
@@ -92,7 +127,7 @@ class Pathfind(object):
         if self.benchmark:
                 ts = time()
         with self.prg.solve(yield_=True) as h:
-            # optimales modell auswaehlen
+            # choose optimal model
             for m in h:
                 opt = m
             for atom in opt.symbols(shown=True):
@@ -149,11 +184,11 @@ class Pathfind(object):
             t = tf-ts
             print("PSt=%s," %(t)), # Parsing solve time
 
-        # pickingstations zu orders zuteilen
+        # assign pickingstations to orders
         for order in self.orders:
             order.append(order_stations[order[0]])
 
-        # self.state initialisieren
+        # update self.state
         for i in range(max(self.nodes, key=lambda item:item[1])[1]):
             self.state.append([])
             for j in range(max(self.nodes, key=lambda item:item[2])[2]):
