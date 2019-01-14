@@ -21,18 +21,22 @@ station(X, Y, N) :- init(object(pickingStation,N),value(at,(X,Y))).
 product(N, S) :- init(object(product,N),value(on,(S,_))).
 node(X, Y) :- init(object(node, _), value(at, (X, Y))).
 highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
+% Startpositionen der Roboter auch als highway nutzen
+highway(X, Y) :- init(object(node, _), value(at, (X,Y))), init(object(robot,R),value(at,(X,Y))).
 
 
 pos(X, Y, 0, R) :- start(X, Y, R).
 dir(1, 0). dir(-1,0). dir(0, 1). dir(0, -1).
-pos(X+DX, Y+DY, T, R) :- pos(X, Y, T-1, R), move(DX, DY, T, R), robot(R), node(X+DX, Y+DY).
+pos(X+DX, Y+DY, T, R) :- pos(X, Y, T-1, R), move(DX, DY, T, R), robot(R), highway(X+DX, Y+DY).
+pos(X+DX, Y+DY, T, R) :- pos(X, Y, T-1, R), move(DX, DY, T, R), robot(R), goal(X+DX, Y+DY, _, _).
 
 
 {move(X, Y, T, R) : dir(X, Y)} <= 1 :- pos(PX, PY, T-1, R), node(PX, PY), time(T), not action(T, R), robot(R).
+%{move(X, Y, T, R) : dir(X, Y)} <= 1 :- pos(PX, PY, T-1, R), goal(PX, PY, _, _), time(T), not action(T, R), robot(R).
 
-pos(X, Y, T, R) :- pos(X, Y, T-1, R), node(X, Y), time(T), action(T, R), robot(R).
+pos(X, Y, T, R) :- pos(X, Y, T-1, R), goal(X, Y, _, _), time(T), action(T, R), robot(R).
 
-{move(X, Y, T, R) : dir(X, Y)} <= 1 :- pos(PX, PY, T-1, R), node(PX, PY), time(T), action(T-1, R), robot(R).
+{move(X, Y, T, R) : dir(X, Y)} <= 1 :- pos(PX, PY, T-1, R), goal(PX, PY, _, _), time(T), action(T-1, R), robot(R).
 
 
 action(T, R) :- {pickup(T, R); deliver(T, R, _, _); putdown(T, R)} = 1, time(T), robot(R).
