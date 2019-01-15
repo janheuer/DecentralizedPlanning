@@ -21,6 +21,8 @@ station(X, Y, N) :- init(object(pickingStation,N),value(at,(X,Y))).
 product(N, S) :- init(object(product,N),value(on,(S,_))).
 node(X, Y) :- init(object(node, _), value(at, (X, Y))).
 highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
+% Damit auch Instanzen ohne highway-nodes nutzbar sind. Nur aktivieren, wenn notwendig, wegen performance
+% highway(X, Y) :- init(object(node, _), value(at, (X,Y))), not shelf(X, Y, _), not station(X, Y, _).
 % Startpositionen der Roboter auch als highway nutzen
 highway(X, Y) :- init(object(node, _), value(at, (X,Y))), init(object(robot,R),value(at,(X,Y))).
 
