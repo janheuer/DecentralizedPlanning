@@ -29,8 +29,8 @@ pos(X+DX, Y+DY, T, R) :- pos(X, Y, T-1, R), move(DX, DY, T, R), robot(R), highwa
 
 :- goal(_, X, Y), not pos(X, Y, _, _).
 
+move(X+DX,Y+DY,N+1,R) :- goal(N,X,Y), highway(X+DX,Y+DY), dir(DX,DY), robot(R).
+
 
 #show move/4.
-
-
-
+#show goal/3.
