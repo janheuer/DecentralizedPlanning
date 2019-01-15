@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
 import clingo
 import simulatorCostum # needs simulator.py and network.py from visualizer/scripts
 import printer
 import robot
 from time import time
 import argparse
+import sys
 
 class Pathfind(object):
-	def __init__(self, instance, encoding, output, benchmark, solve_output, port):
-		self.output = output
+	def __init__(self, instance, encoding, model_output, verbose, benchmark, verbose_out):
+		self.model_output = model_output
 		self.benchmark = benchmark
-		self.solve_output = solve_output
+		self.verbose = verbose
+		self.verbose_out = verbose_out
 		self.ground_times = []
 		self.solve_times = []
 		self.resolve_times = []
@@ -27,7 +30,7 @@ class Pathfind(object):
 			tf = time()
 			t = tf-ts
 			self.ground_times.append(t)
-			print("PGt=%s," %(t)), # Parsing Ground time
+			print("PGt=%s," %(t), file=sys.stderr, end='') # Parsing Ground time
 		self.state = [] # to save the positions of the robots
 		if self.benchmark:
 			ts = time()
@@ -35,7 +38,7 @@ class Pathfind(object):
 		if self.benchmark:
 			tf = time()
 			t = tf-ts
-			print("Pt=%s," %(t)), # Parse time
+			print("Pt=%s," %(t), file=sys.stderr, end='') # Parse time
 		# nodes: [[id, x, y]]
 		# highways: [[id, x, y]]
 		# robots: [robot]
@@ -49,12 +52,8 @@ class Pathfind(object):
 		self.t = 0
 
 		# initialize output
-		if self.output == "viz":
-			self.sim = simulatorCostum.SimulatorCostum(port)
-		elif self.output == "print":
+		if self.model_output:
 			self.sim = printer.Printer()
-
-		if self.output is not None:
 			self.sim.add_inits(self.get_inits())
 
 		# initialize robots
@@ -74,10 +73,195 @@ class Pathfind(object):
 						self.perform_action(robot)
 
 		# start visualizer
-		if self.output == "viz":
+		if self.model_output:
 			self.sim.run(self.t)
 		if benchmark:
-			print("Tpl="+str(self.t)+","), # Total plan length
+			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
+
+	def run_shortest_replanning(self):
+		while self.orders != [] or self.orders_in_delivery != []:
+
+			self.t += 1
+			# mark new potential new position in temp_state
+			temp_state = list(self.state)
+			for r in self.robots:
+				temp_state[r.pos[0]-1][r.pos[1]-1] = 1
+			for r in self.robots:
+				temp_state[r.next_pos[0]-1][r.next_pos[1]-1] = 0
+
+			for i,r1 in enumerate(self.robots):
+				temp_robots = self.robots[0:i]
+				temp_robots += self.robots[i+1:]
+				for r2 in temp_robots:
+					if (r1.next_pos == r2.next_pos) or ((r1.next_pos == r2.pos) and (r1.pos == r2.next_pos)):
+						if r1.next_pos == r2.next_pos:
+							if self.verbose:
+								print("conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
+						else:
+							if self.verbose:
+								print("swapping conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
+						if (r1.next_action.name == "move") and (r2.next_action.name == "move"): # method only works if both move
+							# both robots find a new plan
+							r1.update_state(temp_state)
+							r1.find_new_plan()
+							r2.update_state(temp_state)
+							r2.find_new_plan()
+							# compute added length of new plan
+							dr1 = -1 if r1.plan_length == -1 else r1.plan_length - (r1.old_plan_length - (r1.t - 1))
+							dr2 = -1 if r2.plan_length == -1 else r2.plan_length - (r2.old_plan_length - (r2.t - 1))
+							# choose which robot uses new plan
+							if (dr1 == -1) and (dr2 == -1):
+								if self.verbose:
+									print("both robots deadlocked", file=verbose_out)
+								# both robot deadlocked
+								# both use new plan (which causes them to wait next timestep and replan)
+								r1.use_new_plan()
+								r2.use_new_plan()
+							if (dr1 == -1) or (dr2 <= dr1):
+								if self.verbose:
+									print("r1 deadlocked or dr2<=dr1", file=verbose_out)
+								r1.use_old_plan()
+								r2.use_new_plan()
+								temp_state[r2.next_pos[0]-1][r2.next_pos[1]-1] = 0
+							elif (dr2 == -1) or (dr1 < dr2):
+								if self.verbose:
+									print("r2 deadlocked or dr1<dr2", file=verbose_out)
+								r1.use_new_plan()
+								r2.use_old_plan()
+								temp_state[r1.next_pos[0]-1][r1.next_pos[1]-1] = 0
+						else:
+							if r1.next_action.name != "move":
+								if self.verbose:
+									print("only r2 moves", file=verbose_out)
+								r2.update_state(temp_state)
+								r2.find_new_plan()
+								r2.use_new_plan()
+							if r2.next_action.name != "move":
+								if self.verbose:
+									print("only r1 moves", file=verbose_out)
+								r1.update_state(temp_state)
+								r1.find_new_plan()
+								r1.use_new_plan()
+
+			for robot in self.robots:
+				self.perform_action(robot)
+
+		# start visualizer
+		if self.model_output:
+			self.sim.run(self.t)
+		if benchmark:
+			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
+
+
+	def run_crossing(self):
+		while self.orders != [] or self.orders_in_delivery != []:
+
+			self.t += 1
+			# mark new potential new position in temp_state
+			temp_state = list(self.state)
+			for r in self.robots:
+				temp_state[r.pos[0]-1][r.pos[1]-1] = 1
+			for r in self.robots:
+				temp_state[r.next_pos[0]-1][r.next_pos[1]-1] = 0
+
+			for i,r1 in enumerate(self.robots):
+				temp_robots = self.robots[0:i]
+				temp_robots += self.robots[i+1:]
+				for r2 in temp_robots:
+					if r1.next_pos == r2.next_pos:
+						if self.verbose:
+							print("conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
+							print("r1 waits", file=verbose_out)
+						r1.wait = True
+					if ((r1.next_pos == r2.pos) and (r1.pos == r2.next_pos)):
+						if self.verbose:
+							print("swapping conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
+						if (r1.next_action.name == "move") and (r2.next_action.name == "move"): # method only works if both move
+							r1.update_state(temp_state)
+							r1.find_crossroad()
+							r2.update_state(temp_state)
+							r2.find_crossroad()
+
+							if r1.cross_length < r2.cross_length:
+								# detemine in which direction r1 has to dodge
+								# get direction of r2 moving onto crossing and direction of r2 moving from crossing
+								for atom in r2.model:
+									if atom.name == "move":
+										#r2.t-1 = timesteps r2 has completed, r1.cross_length = time r1 takes to crossing +1 because r2 takes one step more to crossing +1 beacuse we need the next move atom
+										if atom.arguments[2].number == r2.t-1 + r1.cross_length +1:
+											move_to_cross = atom
+										if atom.arguments[2].number == r2.t-1 + r1.cross_length +1 +1:
+											move_from_cross = atom
+								# cross_model contains moves for all possible direction off the crossing
+								# one needs to be chosen
+								second_move = False
+								for atom in r1.cross_model:
+									if atom.name == "move":
+										if atom.arguments[2].number == r1.cross_length+1:
+											# remove the direction from which the other robot is coming
+											if (atom.arguments[0].number == move_to_cross.arguments[0].number) and
+												(atom.arguments[1].number == move_to_cross.arguments[1].number):
+												r1.cross_model.remove(atom)
+											# remove the direction in which the other robot is moving
+											elif (atom.arguments[0].number == move_from_cross.arguments[0].number) and
+												(atom.arguments[1].number == move_from_cross.arguments[1].number):
+												r1.cross_model.remove(atom)
+											# now atleast 1 direction is left but there could be a second one
+											# the first direction will be used
+											elif not second_move:
+												second_move = True
+											# the possible other direction will be removed
+											else:
+												r1.cross_model.remove(atom)
+								r1.use_crossroad() # this also generate rest of plan (returning to start)
+
+							if r1.cross_length < r2.cross_length:
+								for atom in r1.model:
+									if atom.name == "move":
+										if atom.arguments[2].number == r1.t-1 + r2.cross_length +1:
+											move_to_cross = atom
+										if atom.arguments[2].number == r1.t-1 + r2.cross_length +1 +1:
+											move_from_cross = atom
+								second_move = False
+								for atom in r2.cross_model:
+									if atom.name == "move":
+										if atom.arguments[2].number == r2.cross_length+1:
+											if (atom.arguments[0].number == move_to_cross.arguments[0].number) and
+												(atom.arguments[1].number == move_to_cross.arguments[1].number):
+												r2.cross_model.remove(atom)
+											elif (atom.arguments[0].number == move_from_cross.arguments[0].number) and
+												(atom.arguments[1].number == move_from_cross.arguments[1].number):
+												r2.cross_model.remove(atom)
+											elif not second_move:
+												second_move = True
+											else:
+												r2.cross_model.remove(atom)
+								r2.use_crossroad()
+
+						else:
+							if r1.next_action.name != "move":
+								if self.verbose:
+									print("only r2 moves", file=verbose_out)
+								r2.update_state(temp_state)
+								r2.find_new_plan()
+								r2.use_new_plan()
+							if r2.next_action.name != "move":
+								if self.verbose:
+									print("only r1 moves", file=verbose_out)
+								r1.update_state(temp_state)
+								r1.find_new_plan()
+								r1.use_new_plan()
+
+			for robot in self.robots:
+				self.perform_action(robot)
+
+		# start visualizer
+		if self.model_output:
+			self.sim.run(self.t)
+		if benchmark:
+			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
+
+
 
 	# new run version for different conflict handling strategies
 	def run2(self):
@@ -98,16 +282,16 @@ class Pathfind(object):
 				self.perform_action(robot)
 
 		# start visualizer
-		if self.output == "viz":
+		if self.model_output:
 			self.sim.run(self.t)
 		if benchmark:
-			print("Tpl="+str(self.t)+","), # Total plan length
+			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
 	def solve_conflicts(self, conflicts):
 		for conflict in conflicts:
 			if conflict[0].next_pos == conflict[1].next_pos:
 				conflict[0].wait = True
-			
+
 	def get_conflicts(self):
 		# returns list of tuples of robots which have a conflict
 		conflicts = []
@@ -158,7 +342,7 @@ class Pathfind(object):
 							tf = time()
 							t = tf-ts
 							self.ground_times.append(t)
-							print("Igt=%s," %(t)), # Init Ground time
+							print("Igt=%s," %(t), file=sys.stderr, end='') # Init Ground time
 					elif name == "order":
 						id = atom.arguments[0].arguments[1].number
 						if atom.arguments[1].arguments[0].name == "line":
@@ -186,7 +370,7 @@ class Pathfind(object):
 		if self.benchmark:
 			tf = time()
 			t = tf-ts
-			print("PSt=%s," %(t)), # Parsing solve time
+			print("PSt=%s," %(t), file=sys.stderr, end='') # Parsing solve time
 
 		# assign pickingstations to orders
 		for order in self.orders:
@@ -233,7 +417,7 @@ class Pathfind(object):
 			# 2) in the last timestep no order could be assigned
 			# 3) robot was in a deadlock in the last timestep
 			self.plan(robot)
-		if (self.output is not None) and (name != ""):
+		if (self.model_output) and (name != ""):
 			self.sim.add(robot.id, name, args, self.t)
 		if name == "putdown":
 			# order is finished
@@ -244,7 +428,7 @@ class Pathfind(object):
 		# mark new position
 		self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
 
-		
+
 	def finish_order(self, order, shelf):
 		# shelf can be used again
 		self.release_shelf(shelf)
@@ -276,12 +460,12 @@ class Pathfind(object):
 			resolve = False
 			if not self.assign_order(robot): # try to assign a order
 				return False
-			if self.solve_output:
-				print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
+			if self.verbose:
+				print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t), file=verbose_out)
 		else:
 			resolve = True
-			if self.solve_output:
-				print("robot"+str(robot.id)+" replanning at t="+str(self.t))
+			if self.verbose:
+				print("robot"+str(robot.id)+" replanning at t="+str(self.t), file=verbose_out)
 
 		if self.benchmark:
 			ts = time()
@@ -292,10 +476,10 @@ class Pathfind(object):
 			self.solve_times.append(t)
 			if resolve:
 				self.resolve_times.append(t)
-				print("Rst=%s," %(t)),
+				print("Rst=%s," %(t), file=sys.stderr, end='')
 			else:
-				print("St=%s," %(t)),
-			print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ","),
+				print("St=%s," %(t), file=sys.stderr, end='')
+			print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",", file=sys.stderr, end='')
 
 		if found_plan: # if the robot found a plan the shelf has to be reserved
 			self.reserve_shelf(robot.shelf)
@@ -343,55 +527,57 @@ if __name__ == "__main__":
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument("instance", help="the instance to be loaded")
-	parser.add_argument("-b", "--benchmark", help="use benchmark output (turns off all other output)", default=False, action="store_true")
-	parser.add_argument("-o", "--output", help="output mode (default=print)", choices=["print", "viz"], default="print")
-	parser.add_argument("-n", "--nosolve", help="turns off output when a robot solves/resolves", default=False, action="store_true")
-	parser.add_argument("-p", "--port", help="port to be used when connecting to the visualizer (default=5001)", default=5001, type=int)
+	parser.add_argument("-n", "--nomodel", help="disables output of the model", default=False, action="store_true")
+	parser.add_argument("-v", "--verbose", help="outputs additional information (printed to stderr)", default=False, action="store_true")
+	parser.add_argument("-b", "--benchmark", help="use benchmark output (possible verbose output will be redirected to stdout)", default=False, action="store_true")
 	parser.add_argument("-e", "--encoding", help="encoding to be used. default: ./pathfind.lp", default = './pathfind.lp', type = str)
 	args = parser.parse_args()
 
+	model_output = not args.nomodel
+	verbose = args.verbose
 	benchmark = args.benchmark
-	output = args.output if not benchmark else None
-	solve_output = not args.nosolve if not benchmark else False
 	encoding = args.encoding
-	
+	verbose_out = sys.stderr if not benchmark else sys.stdout
+
 	if benchmark:
 		t1 = time()
-	pathfind = Pathfind(args.instance, encoding, output, benchmark, solve_output, args.port)
+	pathfind = Pathfind(args.instance, encoding, model_output, verbose, benchmark, verbose_out)
 	if benchmark:
 		t2 = time()
 		initTime = t2-t1
-		print("It=%s," %(initTime)), # Initial time
+		print("It=%s," %(initTime), file=sys.stderr, end='') # Initial time
 
 	if benchmark:
 		groundTime = 0
 		for t in pathfind.ground_times:
 			groundTime += t
-		print("Tgt=%s," %(groundTime)), #Total ground time
+		print("Tgt=%s," %(groundTime), file=sys.stderr, end='') #Total ground time
 
 		solveTimeInit = 0
 		for t in pathfind.solve_times:
 			solveTimeInit += t
-		print("TstI=%s," %(solveTimeInit)), # Total solve time in Init
+		print("TstI=%s," %(solveTimeInit), file=sys.stderr, end='') # Total solve time in Init
 		pathfind.solve_times = []
 
 	if benchmark:
 		t1 = time()
-	pathfind.run2()
+	#pathfind.run()
+	pathfind.run_shortest_replanning()
+	#pathfind.run_crossing()
 	if benchmark:
 		t2 = time()
 		runTime = t2-t1
-		print("Rt=%s," %(runTime)), # Run time
+		print("Rt=%s," %(runTime), file=sys.stderr, end='') # Run time
 
 	if benchmark:
 		solveTimeRun = 0
 		for t in pathfind.solve_times:
 			solveTimeRun += t
-		print("TstR=%s," %(solveTimeRun)), # Total solve time in run
-		print("Tst=%s," %(solveTimeInit+solveTimeRun)), # Total solve time
+		print("TstR=%s," %(solveTimeRun), file=sys.stderr, end='') # Total solve time in run
+		print("Tst=%s," %(solveTimeInit+solveTimeRun), file=sys.stderr, end='') # Total solve time
 
 		resolveTime = 0
 		for t in pathfind.resolve_times:
 			resolveTime += t
-		print("Trst=%s," %(resolveTime)), # Total resolve time
-		print("Tt=%s," %(initTime+runTime)), # Total time
+		print("Trst=%s," %(resolveTime), file=sys.stderr, end='') # Total resolve time
+		print("Tt=%s," %(initTime+runTime), file=sys.stderr, end='') # Total time
