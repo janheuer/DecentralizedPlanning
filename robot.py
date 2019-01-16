@@ -103,8 +103,8 @@ class Robot(object):
 
 	def solve(self):
 		found_model = self.find_new_plan()
-		if found_model:
-			self.use_new_plan()
+		#if found_model:
+		self.use_new_plan()
 		return found_model
 
 	def find_crossroad():
@@ -132,8 +132,6 @@ class Robot(object):
 
 	def use_crossroad():
 		self.using_crossroad = True
-		self.cross_finished = False
-		self.backtrack = False
 		self.t_model_done = self.t -1 # save how many steps of plan are already completed
 
 		# total corss_model length will be corss_length (time to corssing) +1 (to actually dodge other robot) *2 (for returning)
@@ -164,6 +162,9 @@ class Robot(object):
 					next_action = True
 			if not next_action:
 				self.plan_finished = True
+				self.next_pos = list(self.pos) # needed for shortest_replanning strategy
+				self.next_action = clingo.Function("wait", [])
+				# if a robot is deadlocked we still need to know its next position to prevent conflicts
 		else:
 			for atom in self.cross_model:
 				if atom.name == "move" and atom.arguments[2].number == self.t+1:
@@ -172,8 +173,12 @@ class Robot(object):
 					self.next_pos[1] = self.pos[1] + atom.arguments[1].number
 					next_action = True
 			if not next_action:
-				self.cross_finished = True
-				
+				self.using_crossroad = False
+				# restore to old plan
+				self.t = self.t_model_done
+				self.get_next_action()
+				self.t += 1
+
 			# TODO: continue with normal plan
 
 	def action(self):
