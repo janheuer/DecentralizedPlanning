@@ -89,6 +89,7 @@ class Pathfind(object):
 			for r in self.robots:
 				temp_state[r.next_pos[0]-1][r.next_pos[1]-1] = 0
 
+			r_replanned = []
 			for i,r1 in enumerate(self.robots):
 				temp_robots = self.robots[0:i]
 				temp_robots += self.robots[i+1:]
@@ -103,45 +104,240 @@ class Pathfind(object):
 						if (r1.next_action.name == "move") and (r2.next_action.name == "move"): # method only works if both move
 							# both robots find a new plan
 							r1.update_state(temp_state)
+							if self.benchmark:
+								ts = time()
 							r1.find_new_plan()
+							if self.benchmark:
+								tf = time()
+								t = tf-ts
+								self.solve_times.append(t)
+								self.resolve_times.append(t)
+								print("Rst1=%s," %(t), file=sys.stderr, end='') # Rst1 for robot 1 of 2
+								print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",", file=sys.stderr, end='')
+
+							if self.benchmark:
+								ts = time()
 							r2.update_state(temp_state)
+							if self.benchmark:
+								tf = time()
+								t = tf-ts
+								self.solve_times.append(t)
+								self.resolve_times.append(t)
+								print("Rst2=%s," %(t), file=sys.stderr, end='') # Rst2 for robot 2 of 2
+								print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",", file=sys.stderr, end='')
+
 							r2.find_new_plan()
 							# compute added length of new plan
+							#print(r1.plan_length)
 							dr1 = -1 if r1.plan_length == -1 else r1.plan_length - (r1.old_plan_length - (r1.t - 1))
+							#print(dr1)
+							#print(r2.plan_length)
 							dr2 = -1 if r2.plan_length == -1 else r2.plan_length - (r2.old_plan_length - (r2.t - 1))
+							#print(dr2)
 							# choose which robot uses new plan
-							if (dr1 == -1) and (dr2 == -1):
+							if ((dr1 == -1) and (dr2 == -1)):
 								if self.verbose:
 									print("both robots deadlocked", file=verbose_out)
 								# both robot deadlocked
 								# both use new plan (which causes them to wait next timestep and replan)
 								r1.use_new_plan()
+								# whenever a robot uses a new plan we have to check for possible new conflicts
+								# the checking of conflicts with robots with a higher id than r1 is already done by the loop
+								# this however does not detect conflicts of the following kind:
+								# initially no conflict between 1 and 2
+								# after a conflict with 3 the robot 2 uses a new plan
+								# this new plan could introduce a conflict between 1 and 2
+								# to check for these all robots which use a new plan are saved in a list and will be checked again after the loop
+								# TODO: possibly rewrite this so this loop already uses a list and initially all robots are in it ?
+								if r1 not in r_replanned:
+									r_replanned.append(r1)
 								r2.use_new_plan()
-							if (dr1 == -1) or (dr2 <= dr1):
+								if r2 not in r_replanned:
+									r_replanned.append(r2)
+							if (dr1 == -1) or (dr2 <= dr1 and dr2!=-1): # here dr2 can still be -1 -> then dr2<=dr1 would be true therefore the condition dr2!=-1 is needed
 								if self.verbose:
 									print("r1 deadlocked or dr2<=dr1", file=verbose_out)
 								r1.use_old_plan()
+								#print(r1.plan_length)
+								#print(r1.model)
 								r2.use_new_plan()
+								if r2 not in r_replanned:
+									r_replanned.append(r2)
+								#print(r2.plan_length)
+								#print(r2.model)
 								temp_state[r2.next_pos[0]-1][r2.next_pos[1]-1] = 0
 							elif (dr2 == -1) or (dr1 < dr2):
 								if self.verbose:
 									print("r2 deadlocked or dr1<dr2", file=verbose_out)
 								r1.use_new_plan()
+								if r1 not in r_replanned:
+									r_replanned.append(r1)
+								#print(r1.model)
 								r2.use_old_plan()
+								#print(r2.model)
 								temp_state[r1.next_pos[0]-1][r1.next_pos[1]-1] = 0
 						else:
 							if r1.next_action.name != "move":
 								if self.verbose:
 									print("only r2 moves", file=verbose_out)
 								r2.update_state(temp_state)
+								if self.benchmark:
+									ts = time()
 								r2.find_new_plan()
+								if self.benchmark:
+									tf = time()
+									t = tf-ts
+									self.solve_times.append(t)
+									self.resolve_times.append(t)
+									print("Rst0=%s," %(t), file=sys.stderr, end='') # Rst0 because no second robot
+									print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",", file=sys.stderr, end='')
 								r2.use_new_plan()
+								if r2 not in r_replanned:
+									r_replanned.append(r2)
 							if r2.next_action.name != "move":
 								if self.verbose:
 									print("only r1 moves", file=verbose_out)
 								r1.update_state(temp_state)
+								if self.benchmark:
+									ts = time()
 								r1.find_new_plan()
+								if self.benchmark:
+									tf = time()
+									t = tf-ts
+									self.solve_times.append(t)
+									self.resolve_times.append(t)
+									print("Rst0=%s," %(t), file=sys.stderr, end='') # Rst0 because no second robot
+									print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",", file=sys.stderr, end='')
 								r1.use_new_plan()
+								if r1 not in r_replanned:
+									r_replanned.append(r1)
+
+			# TODO rewrite *****************************************************
+			while r_replanned != []:
+				r1 = r_replanned.pop()
+				i = self.robots.index(r1)
+				temp_robots = self.robots[0:i]
+				temp_robots += self.robots[i+1:]
+				for r2 in temp_robots:
+					if (r1.next_pos == r2.next_pos) or ((r1.next_pos == r2.pos) and (r1.pos == r2.next_pos)):
+						if r1.next_pos == r2.next_pos:
+							if self.verbose:
+								print("conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
+						else:
+							if self.verbose:
+								print("swapping conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
+						if (r1.next_action.name == "move") and (r2.next_action.name == "move"): # method only works if both move
+							# both robots find a new plan
+							r1.update_state(temp_state)
+							if self.benchmark:
+								ts = time()
+							r1.find_new_plan()
+							if self.benchmark:
+								tf = time()
+								t = tf-ts
+								self.solve_times.append(t)
+								self.resolve_times.append(t)
+								print("Rst1=%s," %(t), file=sys.stderr, end='') # Rst1 for robot 1 of 2
+								print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",", file=sys.stderr, end='')
+
+							if self.benchmark:
+								ts = time()
+							r2.update_state(temp_state)
+							if self.benchmark:
+								tf = time()
+								t = tf-ts
+								self.solve_times.append(t)
+								self.resolve_times.append(t)
+								print("Rst2=%s," %(t), file=sys.stderr, end='') # Rst2 for robot 2 of 2
+								print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",", file=sys.stderr, end='')
+
+							r2.find_new_plan()
+							# compute added length of new plan
+							#print(r1.plan_length)
+							dr1 = -1 if r1.plan_length == -1 else r1.plan_length - (r1.old_plan_length - (r1.t - 1))
+							#print(dr1)
+							#print(r2.plan_length)
+							dr2 = -1 if r2.plan_length == -1 else r2.plan_length - (r2.old_plan_length - (r2.t - 1))
+							#print(dr2)
+							# choose which robot uses new plan
+							if ((dr1 == -1) and (dr2 == -1)):
+								if self.verbose:
+									print("both robots deadlocked", file=verbose_out)
+								# both robot deadlocked
+								# both use new plan (which causes them to wait next timestep and replan)
+								r1.use_new_plan()
+								# whenever a robot uses a new plan we have to check for possible new conflicts
+								# the checking of conflicts with robots with a higher id than r1 is already done by the loop
+								# this however does not detect conflicts of the following kind:
+								# initially no conflict between 1 and 2
+								# after a conflict with 3 the robot 2 uses a new plan
+								# this new plan could introduce a conflict between 1 and 2
+								# to check for these all robots which use a new plan are saved in a list and will be checked again after the loop
+								# TODO: possibly rewrite this so this loop already uses a list and initially all robots are in it ?
+								if r1 not in r_replanned:
+									r_replanned.append(r1)
+								r2.use_new_plan()
+								if r2 not in r_replanned:
+									r_replanned.append(r2)
+							if (dr1 == -1) or (dr2 <= dr1 and dr2!=-1): # here dr2 can still be -1 -> then dr2<=dr1 would be true therefore the condition dr2!=-1 is needed
+								if self.verbose:
+									print("r1 deadlocked or dr2<=dr1", file=verbose_out)
+								r1.use_old_plan()
+								#print(r1.plan_length)
+								#print(r1.model)
+								r2.use_new_plan()
+								if r2 not in r_replanned:
+									r_replanned.append(r2)
+								#print(r2.plan_length)
+								#print(r2.model)
+								temp_state[r2.next_pos[0]-1][r2.next_pos[1]-1] = 0
+							elif (dr2 == -1) or (dr1 < dr2):
+								if self.verbose:
+									print("r2 deadlocked or dr1<dr2", file=verbose_out)
+								r1.use_new_plan()
+								if r1 not in r_replanned:
+									r_replanned.append(r1)
+								#print(r1.model)
+								r2.use_old_plan()
+								#print(r2.model)
+								temp_state[r1.next_pos[0]-1][r1.next_pos[1]-1] = 0
+						else:
+							if r1.next_action.name != "move":
+								if self.verbose:
+									print("only r2 moves", file=verbose_out)
+								r2.update_state(temp_state)
+								if self.benchmark:
+									ts = time()
+								r2.find_new_plan()
+								if self.benchmark:
+									tf = time()
+									t = tf-ts
+									self.solve_times.append(t)
+									self.resolve_times.append(t)
+									print("Rst0=%s," %(t), file=sys.stderr, end='') # Rst0 because no second robot
+									print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",", file=sys.stderr, end='')
+								r2.use_new_plan()
+								if r2 not in r_replanned:
+									r_replanned.append(r2)
+							if r2.next_action.name != "move":
+								if self.verbose:
+									print("only r1 moves", file=verbose_out)
+								r1.update_state(temp_state)
+								if self.benchmark:
+									ts = time()
+								r1.find_new_plan()
+								if self.benchmark:
+									tf = time()
+									t = tf-ts
+									self.solve_times.append(t)
+									self.resolve_times.append(t)
+									print("Rst0=%s," %(t), file=sys.stderr, end='') # Rst0 because no second robot
+									print("R" + str(robot.id) + " at (" + str(robot.pos[0]) + "," + str(robot.pos[1]) + "), t=" + str(self.t) + ",", file=sys.stderr, end='')
+								r1.use_new_plan()
+								if r1 not in r_replanned:
+									r_replanned.append(r1)
+			# ******************************************************************
+
 
 			for robot in self.robots:
 				self.perform_action(robot)
@@ -199,12 +395,12 @@ class Pathfind(object):
 									if atom.name == "move":
 										if atom.arguments[2].number == r1.cross_length+1:
 											# remove the direction from which the other robot is coming
-											if (atom.arguments[0].number == move_to_cross.arguments[0].number) and
-												(atom.arguments[1].number == move_to_cross.arguments[1].number):
+											if ((atom.arguments[0].number == move_to_cross.arguments[0].number) and
+												(atom.arguments[1].number == move_to_cross.arguments[1].number)):
 												r1.cross_model.remove(atom)
 											# remove the direction in which the other robot is moving
-											elif (atom.arguments[0].number == move_from_cross.arguments[0].number) and
-												(atom.arguments[1].number == move_from_cross.arguments[1].number):
+											elif ((atom.arguments[0].number == move_from_cross.arguments[0].number) and
+												(atom.arguments[1].number == move_from_cross.arguments[1].number)):
 												r1.cross_model.remove(atom)
 											# now atleast 1 direction is left but there could be a second one
 											# the first direction will be used
@@ -226,11 +422,11 @@ class Pathfind(object):
 								for atom in r2.cross_model:
 									if atom.name == "move":
 										if atom.arguments[2].number == r2.cross_length+1:
-											if (atom.arguments[0].number == move_to_cross.arguments[0].number) and
-												(atom.arguments[1].number == move_to_cross.arguments[1].number):
+											if ((atom.arguments[0].number == move_to_cross.arguments[0].number) and
+												(atom.arguments[1].number == move_to_cross.arguments[1].number)):
 												r2.cross_model.remove(atom)
-											elif (atom.arguments[0].number == move_from_cross.arguments[0].number) and
-												(atom.arguments[1].number == move_from_cross.arguments[1].number):
+											elif ((atom.arguments[0].number == move_from_cross.arguments[0].number) and
+												(atom.arguments[1].number == move_from_cross.arguments[1].number)):
 												r2.cross_model.remove(atom)
 											elif not second_move:
 												second_move = True
