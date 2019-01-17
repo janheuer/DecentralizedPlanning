@@ -1,3 +1,5 @@
+from __future__ import print_function
+import sys
 import clingo
 
 class Robot(object):
@@ -30,6 +32,7 @@ class Robot(object):
 
 		self.prg = clingo.Control()
 		self.prg.load(encoding)
+		self.instance = instance
 		self.prg.load(instance)
 		self.prg.ground([("base", []), ("decentralized", [])])
 
@@ -40,6 +43,7 @@ class Robot(object):
 		self.plan_length = -1
 
 		self.using_crossroad = False
+		self.crossroad = None
 
 	def find_new_plan(self):
 		self.old_model = list(self.model)
@@ -107,10 +111,11 @@ class Robot(object):
 		self.use_new_plan()
 		return found_model
 
-	def find_crossroad():
+	def find_crossroad(self):
 		if self.crossroad is None:
 			self.crossroad = clingo.Control()
 			self.crossroad.load("./crossroad.lp")
+			self.crossroad.load(self.instance)
 			self.crossroad.ground([("base", [])])
 		self.crossroad.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), True)
 		self.cross_model = []
@@ -130,8 +135,10 @@ class Robot(object):
 
 		self.crossroad.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), False)
 
-	def use_crossroad():
+	def use_crossroad(self):
+		#print("starting crossroad at "+str(self.t), file=sys.stderr)
 		self.using_crossroad = True
+		#print(self.next_action, file=sys.stderr)
 		self.t_model_done = self.t -1 # save how many steps of plan are already completed
 
 		# total corss_model length will be corss_length (time to corssing) +1 (to actually dodge other robot) *2 (for returning)
@@ -147,6 +154,7 @@ class Robot(object):
 		self.t = 0
 		self.get_next_action()
 		self.t = 1
+		#print(self.cross_model, file=sys.stderr)
 
 	def get_next_action(self):
 		next_action = False
@@ -177,9 +185,10 @@ class Robot(object):
 				# restore to old plan
 				self.t = self.t_model_done
 				self.get_next_action()
+				#print(self.next_action, file=sys.stderr)
 				self.t += 1
+				#print("resuming with old plan from "+str(self.t), file=sys.stderr)
 
-			# TODO: continue with normal plan
 
 	def action(self):
 		if self.plan_finished:
@@ -208,13 +217,16 @@ class Robot(object):
 			else:
 				#print ("%s is waiting at %d" %(self.id, self.t) )
 				self.wait = False
+				self.t -= 2
+				self.get_next_action()
+				self.t += 1
 				return "wait",[]
 
 	def set_order(self, order, available_shelves):
 		self.shelf = -1
 
 		self.order = list(order)
-		self.available_shelves = available_shelves
+		self.available_shelves = list(available_shelves)
 		self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), True)
 		for shelf in self.available_shelves:
 			self.prg.assign_external(clingo.Function("available", [shelf]), True)
