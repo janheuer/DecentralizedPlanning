@@ -367,8 +367,9 @@ class Pathfind(object):
 					if r1.next_pos == r2.next_pos:
 						if self.verbose:
 							print("conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
-							print("r1 waits", file=verbose_out)
+							print("r"+str(r1.id)+" waits", file=verbose_out)
 						r1.wait = True
+						r1.next_pos = list(r1.pos) # next_pos needs to be changed or the conflict will be detected again
 					if ((r1.next_pos == r2.pos) and (r1.pos == r2.next_pos)):
 						if self.verbose:
 							print("swapping conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
@@ -379,6 +380,7 @@ class Pathfind(object):
 							r2.find_crossroad()
 
 							if r1.cross_length < r2.cross_length:
+								print("r"+str(r1.id)+" dodges", file=verbose_out)
 								# detemine in which direction r1 has to dodge
 								# get direction of r2 moving onto crossing and direction of r2 moving from crossing
 								for atom in r2.model:
@@ -395,8 +397,8 @@ class Pathfind(object):
 									if atom.name == "move":
 										if atom.arguments[2].number == r1.cross_length+1:
 											# remove the direction from which the other robot is coming
-											if ((atom.arguments[0].number == move_to_cross.arguments[0].number) and
-												(atom.arguments[1].number == move_to_cross.arguments[1].number)):
+											if ((atom.arguments[0].number == -1*move_to_cross.arguments[0].number) and
+												(atom.arguments[1].number == -1*move_to_cross.arguments[1].number)):
 												r1.cross_model.remove(atom)
 											# remove the direction in which the other robot is moving
 											elif ((atom.arguments[0].number == move_from_cross.arguments[0].number) and
@@ -412,6 +414,7 @@ class Pathfind(object):
 								r1.use_crossroad() # this also generate rest of plan (returning to start)
 
 							if r1.cross_length < r2.cross_length:
+								print("r"+str(r2.id)+" dodges", file=verbose_out)
 								for atom in r1.model:
 									if atom.name == "move":
 										if atom.arguments[2].number == r1.t-1 + r2.cross_length +1:
@@ -758,8 +761,8 @@ if __name__ == "__main__":
 	if benchmark:
 		t1 = time()
 	#pathfind.run()
-	pathfind.run_shortest_replanning()
-	#pathfind.run_crossing()
+	#pathfind.run_shortest_replanning()
+	pathfind.run_crossing()
 	if benchmark:
 		t2 = time()
 		runTime = t2-t1
