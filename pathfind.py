@@ -779,4 +779,4 @@ if __name__ == "__main__":
 		for t in pathfind.resolve_times:
 			resolveTime += t
 		print("Trst=%s," %(resolveTime), file=sys.stderr, end='') # Total resolve time
-		print("Tt=%s," %(initTime+runTime), file=sys.stderr, end='') # Total time
+		print("Tt=%s" %(initTime+runTime), file=sys.stderr) # Total time
