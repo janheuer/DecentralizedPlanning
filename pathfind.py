@@ -9,9 +9,10 @@ import argparse
 import sys
 
 class Pathfind(object):
-	def __init__(self, instance, encoding, model_output, verbose, verbose_out, benchmark):
-		"""Creates all nedded datastructures and the robot objects
-		Also assigns an initial order to each robots and calls the function to plan it
+	def __init__(self, instance, encoding, model_output, verbose, verbose_out, benchmark, external):
+		"""Assigns initial order to the robots and plans it
+		Instance is saved in data structures by helper function parse_instance
+		(also generates the Robot objects)
 		"""
 		self.instance = instance
 		self.encoding = encoding
@@ -19,6 +20,7 @@ class Pathfind(object):
 		self.verbose = verbose
 		self.verbose_out = verbose_out
 		self.benchmark = benchmark
+		self.external = external
 
 		self.prg = clingo.Control()
 		self.prg.load(instance)
@@ -64,11 +66,13 @@ class Pathfind(object):
 			self.t += 1
 			for robot in self.robots:
 				robot.update_state(self.state)
-				if robot.action_possible():
-					self.perform_action(robot)
-				else:
-					if self.plan(robot):
-						self.perform_action(robot)
+				if not robot.action_possible():
+					if not self.plan(robot):
+						# action not possible and couldn't find a new plan -> deadlocked, no action
+						continue
+				self.state[robot.pos[0]-1][robot.pos[1]-1] = 1 # mark old position as free
+				self.perform_action(robot)
+				self.state[robot.pos[0]-1][robot.pos[1]-1] = 0 # mark new position as blocked
 
 		if benchmark:
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
@@ -80,7 +84,7 @@ class Pathfind(object):
 		out = 0 for replannigs where only one robot replans
 		out = 1/2 for first/second robot when two robots replan
 		"""
-		robot.update_state(self.temp_state)
+		robot.update_state(self.state)
 
 		if self.benchmark:
 			ts = time()
@@ -106,7 +110,7 @@ class Pathfind(object):
 		robot.use_new_plan()
 		if robot not in self.to_check:
 			self.to_check.append(robot)
-		self.temp_state[robot.next_pos[0]-1][robot.next_pos[1]-1] = 0
+		self.state[robot.next_pos[0]-1][robot.next_pos[1]-1] = 0
 
 	def run_shortest_replanning(self):
 		"""Run version using the shortest replanning conflict solving strategy
@@ -114,31 +118,30 @@ class Pathfind(object):
 		but only the robot for which the new plan adds less time uses the new plan
 		For conflicts where only one robot moves the other robot replans
 		"""
-		# temp_state to save the new positions (not saved in self.state because they could still change)
-		self.temp_state = []
 		# self.to_check is a list of robots which still have to be checked for conflicts
 		self.to_check = []
 
 		while self.orders != [] or self.orders_in_delivery != []:
 			self.t += 1
 
+			# check that every robot has a plan
+			for r in self.robots:
+				# no order asssigned or no plan because in a deadlock
+				if (r.shelf == -1) or (r.next_action.name == ""):
+					self.plan(r)
+
 			self.temp_state = list(self.state)
 			# unmark all old positions
 			for r in self.robots:
-				self.temp_state[r.pos[0]-1][r.pos[1]-1] = 1
+				self.state[r.pos[0]-1][r.pos[1]-1] = 1
 			# mark all new positions
 			for r in self.robots:
-				self.temp_state[r.next_pos[0]-1][r.next_pos[1]-1] = 0
+				self.state[r.next_pos[0]-1][r.next_pos[1]-1] = 0
 
 			# initially all robots have to be checked
 			self.to_check = list(self.robots)
 			while self.to_check != []:
 				r1 = self.to_check.pop(0) # get first robot and remove from list
-				# check if robot has a order assigned (if not try to assign one and plan it)
-				if r1.shelf == -1:
-					if not self.plan(r1): # returns False if no plan is found
-						continue # because the robot doesn't move we don't need to check for conflicts
-
 				# check for possible conflicts with every other robot
 				for r2 in self.robots:
 					if r1.id == r2.id:
@@ -204,7 +207,10 @@ class Pathfind(object):
 
 			# perform all next actions
 			for robot in self.robots:
-				self.perform_action(robot)
+				if robot.next_action.name != "":
+					self.perform_action(robot)
+			# mark the new positions
+			#self.state = list(self.temp_state)
 
 		if benchmark:
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
@@ -362,7 +368,7 @@ class Pathfind(object):
 						y = atom.arguments[1].arguments[1].arguments[1].number
 						if self.benchmark:
 							ts = time()
-						self.robots.append(robot.Robot(id, [x,y], self.encoding, self.instance))
+						self.robots.append(robot.Robot(id, [x,y], self.encoding, self.instance, self.external))
 						if self.benchmark:
 							tf = time()
 							t = tf-ts
@@ -435,8 +441,9 @@ class Pathfind(object):
 		return possible_order
 
 	def perform_action(self, robot):
-		# mark old position as free
-		self.state[robot.pos[0]-1][robot.pos[1]-1] = 1
+		"""Performs the action of robot
+		If the order is finished with this action, a new order is planned
+		"""
 		name, args = robot.action()
 		if name == "":
 			# robot doesn't have to do a action in this timestep because
@@ -444,7 +451,7 @@ class Pathfind(object):
 			# 2) in the last timestep no order could be assigned
 			# 3) robot was in a deadlock in the last timestep
 			self.plan(robot)
-		if (self.model_output) and (name != ""):
+		elif self.model_output:
 			self.sim.add(robot.id, name, args, self.t)
 		if name == "putdown":
 			# order is finished
@@ -452,8 +459,6 @@ class Pathfind(object):
 			robot.release_order()
 			# plan a new order
 			self.plan(robot)
-		# mark new position
-		self.state[robot.pos[0]-1][robot.pos[1]-1] = 0
 
 	def finish_order(self, order, shelf):
 		"""Releases the shelf and removes the order from orders_in_delivery"""
@@ -502,6 +507,7 @@ class Pathfind(object):
 			if self.verbose:
 				print("robot"+str(robot.id)+" replanning at t="+str(self.t), file=verbose_out)
 
+		robot.update_state(self.state) # not needed for use in standard run() but needed in other versions
 		if self.benchmark:
 			ts = time()
 		found_plan = robot.solve()
@@ -558,7 +564,8 @@ if __name__ == "__main__":
 	parser.add_argument("-n", "--nomodel", help="disables output of the model", default=False, action="store_true")
 	parser.add_argument("-v", "--verbose", help="outputs additional information (printed to stderr)", default=False, action="store_true")
 	parser.add_argument("-b", "--benchmark", help="use benchmark output (possible verbose output will be redirected to stdout)", default=False, action="store_true")
-	parser.add_argument("-s", "--strategy", help="conflict solving strategy to be used (default, shortest, crossing)", choices = ['default','shortest','crossing'],default = 'default', type = str)
+	parser.add_argument("-s", "--strategy", help="conflict solving strategy to be used", choices = ['default','shortest','crossing'],default = 'default', type = str)
+	parser.add_argument("-i", "--internal", help="disables use of external atoms", default=False, action="store_true")
 	parser.add_argument("-e", "--encoding", help="encoding to be used (default: ./pathfind.lp)", default = './pathfind.lp', type = str)
 	args = parser.parse_args()
 	benchmark = args.benchmark
@@ -567,7 +574,7 @@ if __name__ == "__main__":
 	# Initialize the Pathfind object
 	if benchmark:
 		t1 = time()
-	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark)
+	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark, not args.internal)
 	if benchmark:
 		t2 = time()
 		initTime = t2-t1
