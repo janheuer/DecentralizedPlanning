@@ -1,5 +1,5 @@
-from __future__ import print_function
-import sys
+from __future__ import print_function # only needed for debugging
+import sys # only needed for debugging
 import clingo
 
 class Robot(object):
@@ -13,7 +13,7 @@ class Robot(object):
 	# t
 	# shelf
 
-	def __init__(self, id, start, encoding, instance):
+	def __init__(self, id, start, encoding, instance, external):
 		self.id = id
 		self.start = list(start)
 		self.pos = list(start)
@@ -32,11 +32,13 @@ class Robot(object):
 
 		self.encoding = encoding
 		self.instance = instance
-		
-		self.prg = clingo.Control()
-		self.prg.load(encoding)
-		self.prg.load(instance)
-		
+		self.external = external
+
+		if self.external:
+			self.prg = clingo.Control()
+			self.prg.load(encoding)
+			self.prg.load(instance)
+			self.prg.ground([("base", []), ("decentralized", [])])
 
 		self.plan_finished = True
 		self.wait = False # The robot currently does/does not need to wait
@@ -47,37 +49,54 @@ class Robot(object):
 		self.using_crossroad = False
 		self.crossroad = None
 
+		self.next_action = clingo.Function("", [])
+
 	def find_new_plan(self):
 		self.old_model = list(self.model)
 		self.old_plan_length = self.plan_length
 
-		self.prg = clingo.Control()
-		self.prg.load(self.encoding)
-		self.prg.load(self.instance)
-		self.prg.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
-		if (self.pickupdone):
-			self.prg.add("base", [], "pickup(0, 1).")
-		if (self.deliverdone):
-			self.prg.add("base", [], "deliver(0, 1, "+self.order[1]+", "+self.order[0]+").")
-		
-		self.prg.add("base", [], "block(-1, -1).")
-		for i in range(len(self.state)):
-			for j in range(len(self.state[0])):
-				if not (self.state[i][j]):
-					self.prg.add("base", [], "block("+str(i+1)+", "+str(j+1)+").")
-		for shelf in self.available_shelves:
-			self.prg.add("base", [], "available("+str(shelf)+").")
-		
-		self.prg.add("base", [], "order("+str(self.order[1])+", "+str(self.order[2])+", 1, "+str(self.order[0])+").")
-		
-		self.prg.ground([("base", []), ("decentralized", []), ("start", [self.pos[0], self.pos[1]])])
-		
 		self.model = []
-		
+
+		if self.external:
+			self.prg.assign_external(clingo.Function("start", [self.start[0],self.start[1],1]), False)
+			self.prg.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), True)
+
+			self.prg.assign_external(clingo.Function("pickup", [0,1]), self.pickupdone)
+			self.prg.assign_external(clingo.Function("deliver", [0,1, self.order[1], self.order[0]]), self.deliverdone)
+
+			if self.shelf != -1:
+				for shelf in self.available_shelves:
+					self.prg.assign_external(clingo.Function("available", [shelf]), False)
+				self.prg.assign_external(clingo.Function("available", [self.shelf]), True)
+
+			for i in range(len(self.state)):
+				for j in range(len(self.state[0])):
+					self.prg.assign_external(clingo.Function("block", [i+1,j+1]), not self.state[i][j])
+		else:
+			self.prg = clingo.Control()
+			self.prg.load(self.encoding)
+			self.prg.load(self.instance)
+			self.prg.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
+			if (self.pickupdone):
+				self.prg.add("base", [], "pickup(0, 1).")
+			if (self.deliverdone):
+				self.prg.add("base", [], "deliver(0, 1, "+str(self.order[1])+", "+str(self.order[0])+").")
+
+			self.prg.add("base", [], "block(-1, -1).")
+			for i in range(len(self.state)):
+				for j in range(len(self.state[0])):
+					if not (self.state[i][j]):
+						self.prg.add("base", [], "block("+str(i+1)+", "+str(j+1)+").")
+			for shelf in self.available_shelves:
+				self.prg.add("base", [], "available("+str(shelf)+").")
+
+			self.prg.add("base", [], "order("+str(self.order[1])+", "+str(self.order[2])+", 1, "+str(self.order[0])+").")
+
+			self.prg.ground([("base", []), ("decentralizedNoExternals", []), ("start", [self.pos[0], self.pos[1]])])
+
+
 		self.start = list(self.pos)
 		self.plan_finished = False
-
-		
 
 		found_model = False
 		with self.prg.solve(yield_=True) as h:
@@ -94,12 +113,13 @@ class Robot(object):
 
 		if not found_model:
 			self.plan_length = -1
-			self.next_action = None
+			self.next_action = clingo.Function("", [])
 			if self.shelf == -1:
-				# order freigeben
-				#self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
-				#for shelf in self.available_shelves:
-					#self.prg.assign_external(clingo.Function("available", [shelf]), False)
+				if self.external:
+					# order freigeben
+					self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
+					for shelf in self.available_shelves:
+						self.prg.assign_external(clingo.Function("available", [shelf]), False)
 				self.available_shelves = []
 
 		return found_model
@@ -119,16 +139,25 @@ class Robot(object):
 
 	def solve(self):
 		found_model = self.find_new_plan()
-		#if found_model:
-		self.use_new_plan()
+		if found_model:
+			self.use_new_plan()
 		return found_model
 
 	def find_crossroad(self):
-		self.crossroad = clingo.Control()
-		self.crossroad.load("./crossroad.lp")
-		self.crossroad.load(self.instance)
-		self.crossroad.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
-		self.crossroad.ground([("base", []), ("start", [self.pos[0], self.pos[1]])])
+		if self.external:
+			if self.crossroad is None:
+				self.crossroad = clingo.Control()
+				self.crossroad.load("./crossroad.lp")
+				self.crossroad.load(self.instance)
+				self.crossroad.ground([("base", []), ("external", [])])
+			self.crossroad.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), True)
+		else:
+			self.crossroad = clingo.Control()
+			self.crossroad.load("./crossroad.lp")
+			self.crossroad.load(self.instance)
+			self.crossroad.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
+			self.crossroad.ground([("base", []), ("start", [self.pos[0], self.pos[1]])])
+
 		self.cross_model = []
 
 		found_model = False
@@ -144,7 +173,8 @@ class Robot(object):
 					else:
 						self.cross_model.append(atom)
 
-		
+		if self.external:
+			self.crossroad.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), False)
 
 	def use_crossroad(self):
 		#print("starting crossroad at "+str(self.t), file=sys.stderr)
@@ -200,7 +230,6 @@ class Robot(object):
 				self.t += 1
 				#print("resuming with old plan from "+str(self.t), file=sys.stderr)
 
-
 	def action(self):
 		if self.plan_finished:
 			return "",[]
@@ -212,7 +241,8 @@ class Robot(object):
 				if name == "putdown":
 					self.pickupdone = False
 					self.deliverdone = False
-					#self.prg.assign_external(clingo.Function("deliver", [0,1, self.order[1], self.order[0]]), self.deliverdone)
+					if self.external:
+						self.prg.assign_external(clingo.Function("deliver", [0,1, self.order[1], self.order[0]]), self.deliverdone)
 				else:
 					if name == "move":
 						self.pos = list(self.next_pos)
@@ -238,14 +268,16 @@ class Robot(object):
 
 		self.order = list(order)
 		self.available_shelves = list(available_shelves)
-		#self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), True)
-		#for shelf in self.available_shelves:
-			#self.prg.assign_external(clingo.Function("available", [shelf]), True)
+		if self.external:
+			self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), True)
+			for shelf in self.available_shelves:
+				self.prg.assign_external(clingo.Function("available", [shelf]), True)
 
 	def release_order(self):
-		#self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
-		#for shelf in self.available_shelves:
-			#self.prg.assign_external(clingo.Function("available", [shelf]), False)
+		if self.external:
+			self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
+			for shelf in self.available_shelves:
+				self.prg.assign_external(clingo.Function("available", [shelf]), False)
 		self.shelf = -1
 
 	def update_state(self, state):
@@ -269,7 +301,7 @@ class Robot(object):
 		# 0 = kann nicht auf feld begehen
 		if self.plan_finished:
 			return True
-		if self.next_action is None:
+		if self.next_action.name == "":
 			return False
 		if self.next_action.name == "move":
 			# next_pos ist kein blockiertes feld
