@@ -87,8 +87,12 @@ class Robot(object):
 				for j in range(len(self.state[0])):
 					if not (self.state[i][j]):
 						self.prg.add("base", [], "block("+str(i+1)+", "+str(j+1)+").")
-			for shelf in self.available_shelves:
-				self.prg.add("base", [], "available("+str(shelf)+").")
+			
+			if self.shelf != -1:
+				self.prg.add("base", [], "available("+str(self.shelf)+").")
+			else:
+				for shelf in self.available_shelves:
+					self.prg.add("base", [], "available("+str(shelf)+").")
 
 			self.prg.add("base", [], "order("+str(self.order[1])+", "+str(self.order[2])+", 1, "+str(self.order[0])+").")
 
