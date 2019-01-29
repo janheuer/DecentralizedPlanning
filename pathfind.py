@@ -9,7 +9,7 @@ import argparse
 import sys
 
 class Pathfind(object):
-	def __init__(self, instance, encoding, model_output, verbose, verbose_out, benchmark, external):
+	def __init__(self, instance, encoding, model_output, verbose, verbose_out, benchmark, external, highways):
 		"""Assigns initial order to the robots and plans it
 		Instance is saved in data structures by helper function parse_instance
 		(also generates the Robot objects)
@@ -21,7 +21,9 @@ class Pathfind(object):
 		self.verbose_out = verbose_out
 		self.benchmark = benchmark
 		self.external = external
-
+		self.highwaysFlag = highways
+		
+		
 		self.prg = clingo.Control()
 		self.prg.load(instance)
 		if self.benchmark:
@@ -368,7 +370,7 @@ class Pathfind(object):
 						y = atom.arguments[1].arguments[1].arguments[1].number
 						if self.benchmark:
 							ts = time()
-						self.robots.append(robot.Robot(id, [x,y], self.encoding, self.instance, self.external))
+						self.robots.append(robot.Robot(id, [x,y], self.encoding, self.instance, self.external, self.highwaysFlag))
 						if self.benchmark:
 							tf = time()
 							t = tf-ts
@@ -567,14 +569,15 @@ if __name__ == "__main__":
 	parser.add_argument("-s", "--strategy", help="conflict solving strategy to be used", choices = ['default','shortest','crossing'],default = 'default', type = str)
 	parser.add_argument("-i", "--internal", help="disables use of external atoms", default=False, action="store_true")
 	parser.add_argument("-e", "--encoding", help="encoding to be used (default: ./pathfind.lp)", default = './pathfind.lp', type = str)
+	parser.add_argument("-H", "--Highways", help="generate highway tuples if they are not given in the instance", default = False, action = "store_true")
 	args = parser.parse_args()
 	benchmark = args.benchmark
 	verbose_out = sys.stderr if not benchmark else sys.stdout
-
+	
 	# Initialize the Pathfind object
 	if benchmark:
 		t1 = time()
-	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark, not args.internal)
+	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark, not args.internal, args.Highways)
 	if benchmark:
 		t2 = time()
 		initTime = t2-t1

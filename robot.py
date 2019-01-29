@@ -13,7 +13,7 @@ class Robot(object):
 	# t
 	# shelf
 
-	def __init__(self, id, start, encoding, instance, external):
+	def __init__(self, id, start, encoding, instance, external, highways):
 		self.id = id
 		self.start = list(start)
 		self.pos = list(start)
@@ -33,12 +33,20 @@ class Robot(object):
 		self.encoding = encoding
 		self.instance = instance
 		self.external = external
+		self.highways = highways
 
 		if self.external:
 			self.prg = clingo.Control()
 			self.prg.load(encoding)
 			self.prg.load(instance)
-			self.prg.ground([("base", []), ("decentralized", [])])
+			parts = []
+			parts.append(("base", []))
+			parts.append(("decentralized", []))
+			print("highways: ")
+			print(self.highways)
+			if self.highways:
+				parts.append(("highways", []))
+			self.prg.ground(parts)
 
 		self.plan_finished = True
 		self.wait = False # The robot currently does/does not need to wait
@@ -87,7 +95,6 @@ class Robot(object):
 				for j in range(len(self.state[0])):
 					if not (self.state[i][j]):
 						self.prg.add("base", [], "block("+str(i+1)+", "+str(j+1)+").")
-			
 			if self.shelf != -1:
 				self.prg.add("base", [], "available("+str(self.shelf)+").")
 			else:
@@ -95,10 +102,16 @@ class Robot(object):
 					self.prg.add("base", [], "available("+str(shelf)+").")
 
 			self.prg.add("base", [], "order("+str(self.order[1])+", "+str(self.order[2])+", 1, "+str(self.order[0])+").")
+			
+			parts = []
+			parts.append(("base", []))
+			parts.append(("decentralizedNoExternals", []))
+			parts.append(("start", [self.pos[0], self.pos[1]]))
+			if (self.highways):
+				parts.append(("highways", []))
+			self.prg.ground(parts)
 
-			self.prg.ground([("base", []), ("decentralizedNoExternals", []), ("start", [self.pos[0], self.pos[1]])])
-
-
+			
 		self.start = list(self.pos)
 		self.plan_finished = False
 

@@ -1,3 +1,14 @@
+% move(X, Y, T, R) 	- Robot R moves in the direction (X, Y) at timestep T
+% pos(X, Y, T, R) 	- Robot R is at node(X, Y) at timestep T
+% avaialable(N)		- shelf N is available
+% block(X, Y)		- The node(X, Y) is currently blocked
+% goal(X, Y, 1, R)	- The location of the shelf the robot wants to pick up
+% goal(X, Y, 2, R)	- The location of the station that the shelf has to be delivered to
+% goal(X, Y, 3, R)	- The location where the shelf will be put back down
+
+
+
+
 % Überstzung der spezifizierten Instanzen
 #program centralized.
 start(X, Y, R) :- init(object(robot,R),value(at,(X,Y))).
@@ -9,7 +20,6 @@ robot(1).
 #external available(N) : init(object(shelf,N),value(at,(X,Y))).
 #external start(X, Y, R) : init(object(node, _), value(at, (X, Y))), robot(R).
 #external order(P, S, R, N) : init(object(order, N), value(line, (P, A))), init(object(order, N), value(pickingStation, S)), robot(R). % external damit bestellungen zugeordnet werden können
-% bei erneutem solven (weil weg blockiert war) muss festgelegt werden was bereits erledigt wurde
 #external pickup(0, R) : robot(R).
 #external deliver(0, R, P, N) : robot(R), order(P, S, R, N).
 #external block(X, Y) : node(X, Y).
@@ -17,15 +27,18 @@ robot(1).
 #program decentralizedNoExternals.
 robot(1).
 
+#program highways.
+highway(X, Y) :- init(object(node, _), value(at, (X,Y))), not shelf(X, Y, _), not station(X, Y, _).
+
+
 #program base.
-%
+% Direct translations of the instance for easy use
 shelf(X, Y, N) :- init(object(shelf,N),value(at,(X,Y))).
 station(X, Y, N) :- init(object(pickingStation,N),value(at,(X,Y))).
 product(N, S) :- init(object(product,N),value(on,(S,_))).
 node(X, Y) :- init(object(node, _), value(at, (X, Y))).
 highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
-% Damit auch Instanzen ohne highway-nodes nutzbar sind. Nur aktivieren, wenn notwendig, wegen performance
-% highway(X, Y) :- init(object(node, _), value(at, (X,Y))), not shelf(X, Y, _), not station(X, Y, _).
+
 % Startpositionen der Roboter auch als highway nutzen
 highway(X, Y) :- init(object(node, _), value(at, (X,Y))), init(object(robot,R),value(at,(X,Y))).
 
@@ -67,9 +80,12 @@ deliver(T, R, P, N) :- pos(X, Y, T-1, R), goal(X, Y, 2, R), pickup(T2, R), T > T
 putdown(T, R) :- pos(X, Y, T-1, R), goal(X, Y, 3, R), deliver(T2, R, _, _), T > T2, carries(T-1, R).
 :- not putdown(_, R), robot(R).
 
-#minimize{1,T : move(X, Y, T, R)}.
+#minimize{1@2,T : move(X, Y, T, R)}.
 
 
+%#minimize{|X1+X2|+|Y1+Y2| : chooseShelf(X1, Y1, N, R), station(X2, Y2, S), order(P, S, R, _)}.
+
+%chooseShelf(N, R, X, Y) :- chooseShelf(N, R), shelf(X, Y, N).
 {chooseShelf(N, R) : available(N), product(P, N)}=1 :- order(P, _, R, _), robot(R).
 :- robot(R), not chooseShelf(_, R).
 goal(X, Y, 1, R) :- chooseShelf(N, R), shelf(X, Y, N).
