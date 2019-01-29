@@ -22,8 +22,7 @@ class Pathfind(object):
 		self.benchmark = benchmark
 		self.external = external
 		self.highwaysFlag = highways
-		
-		
+
 		self.prg = clingo.Control()
 		self.prg.load(instance)
 		if self.benchmark:
@@ -58,7 +57,7 @@ class Pathfind(object):
 			robot.update_state(self.state)
 			self.plan(robot) # assigns an order and plans it
 
-	def run(self):
+	def run_sequential(self):
 		"""Main function of Pathfind
 		Starts execution of all plans and handles possible conflicts
 		When robots have completed an order, they get assigned a new order
@@ -132,7 +131,6 @@ class Pathfind(object):
 				if (r.shelf == -1) or (r.next_action.name == ""):
 					self.plan(r)
 
-			self.temp_state = list(self.state)
 			# unmark all old positions
 			for r in self.robots:
 				self.state[r.pos[0]-1][r.pos[1]-1] = 1
@@ -194,61 +192,74 @@ class Pathfind(object):
 							# only one robot moves
 							if r1.next_action.name == "move":
 								if self.verbose:
-									print("only r"+str(r2.id)+" moves", file=verbose_out)
-								# only r1 has to find a new plan
-								self.replan(r1)
-								# r1 has to use the new plan
-								self.change_plan(r1)
+									print("r"+str(r2.id)+" delivers and r"+str(r1.id)+" will wait", file=verbose_out)
+								r1.wait()
+								self.state[r1.next_pos[0]-1][r1.next_pos[1]-1] = 0
 							elif r2.next_action.name == "move":
 								if self.verbose:
-									print("only r"+str(r1.id)+" moves", file=verbose_out)
-								# only r2 has to find a new plan
-								self.replan(r2)
-								# r2 has to use the new plan
-								self.change_plan(r2)
+									print("r"+str(r1.id)+" delivers and r"+str(r2.id)+" will wait", file=verbose_out)
+								r2.wait()
+								self.state[r2.next_pos[0]-1][r2.next_pos[1]-1] = 0
 
 			# perform all next actions
 			for robot in self.robots:
 				if robot.next_action.name != "":
 					self.perform_action(robot)
-			# mark the new positions
-			#self.state = list(self.temp_state)
 
 		if benchmark:
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
 	def run_crossing(self):
+		self.to_check = []
+
 		while self.orders != [] or self.orders_in_delivery != []:
-
 			self.t += 1
-			# mark new potential new position in temp_state
-			self.temp_state = list(self.state)
-			for r in self.robots:
-				self.temp_state[r.pos[0]-1][r.pos[1]-1] = 1
-			for r in self.robots:
-				self.temp_state[r.next_pos[0]-1][r.next_pos[1]-1] = 0
 
-			for i,r1 in enumerate(self.robots):
-				temp_robots = self.robots[0:i]
-				temp_robots += self.robots[i+1:]
-				for r2 in temp_robots:
+			for r in self.robots:
+				if (r.shelf == -1) or (r.next_action.name == ""):
+					self.plan(r)
+
+			for r in self.robots:
+				self.state[r.pos[0]-1][r.pos[1]-1] = 1
+			for r in self.robots:
+				self.state[r.next_pos[0]-1][r.next_pos[1]-1] = 0
+
+			self.to_check = list(self.robots)
+			while self.to_check != []:
+				r1 = self.to_check.pop(0)
+
+				for r2 in self.robots:
+					if r1.id == r2.id:
+						continue
+
 					if r1.next_pos == r2.next_pos:
 						if self.verbose:
 							print("conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
-							print("r"+str(r1.id)+" waits", file=verbose_out)
-						r1.wait = True # -> function for wait in robot.py (this also does the next_pos then) ****************
-						r1.next_pos = list(r1.pos) # next_pos needs to be changed or the conflict will be detected again
+						if r1.next_action.name == "move": # not r1.in_conflict
+							if self.verbose:
+								print("r"+str(r1.id)+" waits", file=verbose_out)
+							r1.wait()
+							self.state[r1.next_pos[0]-1][r1.next_pos[1]-1] = 0
+						else:
+							if self.verbose:
+								print("r"+str(r2.id)+" waits", file=verbose_out)
+							r2.wait()
+							self.state[r2.next_pos[0]-1][r2.next_pos[1]-1] = 0
+
 					if ((r1.next_pos == r2.pos) and (r1.pos == r2.next_pos)):
+						r1.in_conflict = True
+						r2.in_conflict = True
+
 						if self.verbose:
 							print("swapping conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
 						if (r1.next_action.name == "move") and (r2.next_action.name == "move"): # method only works if both move
 							# new functions for finding the crossroad -> add benchmarking as well *****************************
-							r1.update_state(self.temp_state)
+							r1.update_state(self.state)
 							r1.find_crossroad()
-							r2.update_state(self.temp_state)
+							r2.update_state(self.state)
 							r2.find_crossroad()
 
-							if r1.cross_length < r2.cross_length:
+							if r1.cross_length < r2.cross_length and r1.cross_length != -1:
 								print("r"+str(r1.id)+" dodges", file=verbose_out)
 								# detemine in which direction r1 has to dodge
 								# get direction of r2 moving onto crossing and direction of r2 moving from crossing -> new function ***************
@@ -294,8 +305,8 @@ class Pathfind(object):
 								for atom in r2.cross_model:
 									if atom.name == "move":
 										if atom.arguments[2].number == r2.cross_length+1:
-											if ((atom.arguments[0].number == move_to_cross.arguments[0].number) and
-												(atom.arguments[1].number == move_to_cross.arguments[1].number)):
+											if ((atom.arguments[0].number == -1*move_to_cross.arguments[0].number) and
+												(atom.arguments[1].number == -1*move_to_cross.arguments[1].number)):
 												r2.cross_model.remove(atom)
 											elif ((atom.arguments[0].number == move_from_cross.arguments[0].number) and
 												(atom.arguments[1].number == move_from_cross.arguments[1].number)):
@@ -306,19 +317,20 @@ class Pathfind(object):
 												r2.cross_model.remove(atom)
 								r2.use_crossroad()
 
-						else:
+						# not needed because in case of swapping conflict both robots move, all non-swapping conflicts already handeld earlier
+						"""else:
 							if r1.next_action.name != "move":
 								if self.verbose:
 									print("only r2 moves", file=verbose_out)
-								r2.update_state(self.temp_state)
+								r2.update_state(self.state)
 								r2.find_new_plan()
 								r2.use_new_plan()
 							if r2.next_action.name != "move":
 								if self.verbose:
 									print("only r1 moves", file=verbose_out)
-								r1.update_state(self.temp_state)
+								r1.update_state(self.state)
 								r1.find_new_plan()
-								r1.use_new_plan()
+								r1.use_new_plan()"""
 
 			for robot in self.robots:
 				self.perform_action(robot)
@@ -566,18 +578,18 @@ if __name__ == "__main__":
 	parser.add_argument("-n", "--nomodel", help="disables output of the model", default=False, action="store_true")
 	parser.add_argument("-v", "--verbose", help="outputs additional information (printed to stderr)", default=False, action="store_true")
 	parser.add_argument("-b", "--benchmark", help="use benchmark output (possible verbose output will be redirected to stdout)", default=False, action="store_true")
-	parser.add_argument("-s", "--strategy", help="conflict solving strategy to be used", choices = ['default','shortest','crossing'],default = 'default', type = str)
+	parser.add_argument("-s", "--strategy", help="conflict solving strategy to be used (default: sequential)", choices = ['sequential','shortest','crossing'],default = 'sequential', type = str)
 	parser.add_argument("-i", "--internal", help="disables use of external atoms", default=False, action="store_true")
+	parser.add_argument("-h", "--highways", help="generate highway tuples if they are not given in the instance", default = False, action = "store_true")
 	parser.add_argument("-e", "--encoding", help="encoding to be used (default: ./pathfind.lp)", default = './pathfind.lp', type = str)
-	parser.add_argument("-H", "--Highways", help="generate highway tuples if they are not given in the instance", default = False, action = "store_true")
 	args = parser.parse_args()
 	benchmark = args.benchmark
 	verbose_out = sys.stderr if not benchmark else sys.stdout
-	
+
 	# Initialize the Pathfind object
 	if benchmark:
 		t1 = time()
-	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark, not args.internal, args.Highways)
+	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark, not args.internal, args.highways)
 	if benchmark:
 		t2 = time()
 		initTime = t2-t1
@@ -598,8 +610,8 @@ if __name__ == "__main__":
 	# choose which run method is used according to args.strategy
 	if benchmark:
 		t1 = time()
-	if args.strategy == 'default':
-		pathfind.run()
+	if args.strategy == 'sequential':
+		pathfind.run_sequential()
 	elif args.strategy == 'shortest':
 		pathfind.run_shortest_replanning()
 	elif args.strategy == 'crossing':
