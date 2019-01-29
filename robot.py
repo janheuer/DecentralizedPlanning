@@ -49,7 +49,7 @@ class Robot(object):
 			self.prg.ground(parts)
 
 		self.plan_finished = True
-		self.wait = False # The robot currently does/does not need to wait
+		self.waiting = False # The robot currently does/does not need to wait
 
 		self.model = []
 		self.plan_length = -1
@@ -58,6 +58,8 @@ class Robot(object):
 		self.crossroad = None
 
 		self.next_action = clingo.Function("", [])
+
+		self.in_conflict = False
 
 	def find_new_plan(self):
 		self.old_model = list(self.model)
@@ -102,7 +104,7 @@ class Robot(object):
 					self.prg.add("base", [], "available("+str(shelf)+").")
 
 			self.prg.add("base", [], "order("+str(self.order[1])+", "+str(self.order[2])+", 1, "+str(self.order[0])+").")
-			
+
 			parts = []
 			parts.append(("base", []))
 			parts.append(("decentralizedNoExternals", []))
@@ -111,7 +113,6 @@ class Robot(object):
 				parts.append(("highways", []))
 			self.prg.ground(parts)
 
-			
 		self.start = list(self.pos)
 		self.plan_finished = False
 
@@ -186,9 +187,12 @@ class Robot(object):
 				for atom in opt.symbols(shown=True):
 					if atom.name == "goal":
 						self.cross_length = atom.arguments[0].number
+						#print([atom.arguments[1].number,atom.arguments[2]], file=sys.stderr)
 						#self.cross_pos = [atom.arguments[1].number,atom.arguments[2]]
 					else:
 						self.cross_model.append(atom)
+			else:
+				self.cross_length = -1
 
 		if self.external:
 			self.crossroad.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), False)
@@ -229,7 +233,7 @@ class Robot(object):
 			if not next_action:
 				self.plan_finished = True
 				self.next_pos = list(self.pos) # needed for shortest_replanning strategy
-				self.next_action = clingo.Function("wait", [])
+				self.next_action = clingo.Function("", [])
 				# if a robot is deadlocked we still need to know its next position to prevent conflicts
 		else:
 			for atom in self.cross_model:
@@ -251,7 +255,7 @@ class Robot(object):
 		if self.plan_finished:
 			return "",[]
 		else:
-			if self.wait == False:
+			if not self.waiting:
 				action = self.next_action
 				name = action.name
 				args = []
@@ -274,11 +278,16 @@ class Robot(object):
 				return name, args
 			else:
 				#print ("%s is waiting at %d" %(self.id, self.t) )
-				self.wait = False
-				self.t -= 2
+				self.waiting = False
+				self.t -= 1
 				self.get_next_action()
 				self.t += 1
 				return "wait",[]
+
+	def wait(self):
+		self.waiting = True
+		self.next_action = clingo.Function("wait", [])
+		self.next_pos = list(self.pos)
 
 	def set_order(self, order, available_shelves):
 		self.shelf = -1
