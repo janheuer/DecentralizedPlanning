@@ -42,8 +42,8 @@ class Robot(object):
 			parts = []
 			parts.append(("base", []))
 			parts.append(("decentralized", []))
-			print("highways: ")
-			print(self.highways)
+			#print("highways: ")
+			#print(self.highways)
 			if self.highways:
 				parts.append(("highways", []))
 			self.prg.ground(parts)
@@ -60,6 +60,7 @@ class Robot(object):
 		self.next_action = clingo.Function("", [])
 
 		self.in_conflict = False
+		self.conflict_partner = None
 
 	def find_new_plan(self):
 		self.old_model = list(self.model)
@@ -205,7 +206,7 @@ class Robot(object):
 
 		# total corss_model length will be corss_length (time to corssing) +1 (to actually dodge other robot) *2 (for returning)
 		# construct the dodging move in pathfind ???
-		total_t = 2*(self.cross_length+1)
+		total_t = 2*len(self.cross_model) # len(cross_model) != cross_length ->could have changed because robot doesn't have to dodge all the way
 		return_model = []
 		for atom in self.cross_model:
 			if atom.name == "move":
