@@ -75,7 +75,7 @@ class Pathfind(object):
 				self.perform_action(robot)
 				self.state[robot.pos[0]-1][robot.pos[1]-1] = 0 # mark new position as blocked
 
-		if benchmark:
+		if self.benchmark:
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
 	def replan(self, robot, out=0):
@@ -117,7 +117,7 @@ class Pathfind(object):
 		"""Run version using the shortest replanning conflict solving strategy
 		In case of a conflict (where both robots move) both robots find a new plan
 		but only the robot for which the new plan adds less time uses the new plan
-		For conflicts where only one robot moves the other robot replans
+		For conflicts where only one robot moves the other robot waits
 		"""
 		# self.to_check is a list of robots which still have to be checked for conflicts
 		self.to_check = []
@@ -206,8 +206,72 @@ class Pathfind(object):
 				if robot.next_action.name != "":
 					self.perform_action(robot)
 
-		if benchmark:
+		if self.benchmark:
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
+
+	def get_dodging_dir(self, r1, r2):
+		# detemine in which direction r1 has to dodge
+		# get direction of r2 moving onto crossing and direction of r2 moving from crossing -> new function ***************
+
+		# if the other robot doesn't actually go to the crossing (for example moves to a pickingstation)
+		# the robot doesn't need to dodge completely
+		t_finished = None # save time when robot changes from path to crossing
+		for atom in r2.model:
+			if atom.name == "move":
+				#r2.t-1 = timesteps r2 has completed, r1.cross_length = time r1 takes to crossing +1 because r2 takes one step more to crossing +1 beacuse we need the next move atom
+				if atom.arguments[2].number == r2.t-1 + r1.cross_length +1:
+					move_to_cross = atom
+				if atom.arguments[2].number == r2.t-1 + r1.cross_length +1 +1:
+					move_from_cross = atom
+					break # we have all directions we need so we can stop the loop
+			else:
+				if (t_finished is None) and (atom.arguments[0].number > self.t):
+					# we didn't reach the crossing but have a action atom
+					t_finished = atom.arguments[0].number-1 - r2.t # r2.t-1 ???????
+					break # the robot has left the path to the crossing so we don't need to look at the next atoms
+		# cross_model contains moves for all possible direction off the crossing
+		# one needs to be chosen
+		first_move = True
+		filtered_model = []
+		if t_finished is None:
+			for atom in r1.cross_model:
+					if atom.name == "move":
+						if atom.arguments[2].number == r1.cross_length+1:
+							# remove the direction from which the other robot is coming
+							if ((atom.arguments[0].number == -1*move_to_cross.arguments[0].number) and
+								(atom.arguments[1].number == -1*move_to_cross.arguments[1].number)):
+								continue
+							# remove the direction in which the other robot is moving
+							elif ((atom.arguments[0].number == move_from_cross.arguments[0].number) and
+								(atom.arguments[1].number == move_from_cross.arguments[1].number)):
+								continue
+							# now atleast 1 direction is left but there could be a second one
+							# the first direction will be used
+							elif first_move:
+								first_move = False
+								filtered_model.append(atom)
+							# the possible other direction will be removed
+						else:
+							filtered_model.append(atom)
+		else:
+			for atom in r1.cross_model:
+				if atom.name == "move":
+					if atom.arguments[2].number <= t_finished:
+						filtered_model.append(atom)
+
+		r1.cross_model = list(filtered_model)
+
+	def get_nested_dodge(self, r1, r2):
+		t_return = r2.cross_length / 2
+		r1.cross_length = t_return
+		r1.cross_model = []
+		for atom in r2.cross_model:
+			if atom.arguments[2].number > t_return: # second half of plan not needed
+				break
+			if atom.arguments[2].number != 0: # arguments t changed to t-1
+				r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-1, atom.arguments[3].number]))
+				if atom.arguments[2].number == t_return: # last move before returning is needed two times
+					r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number, atom.arguments[3].number]))
 
 	def run_crossing(self):
 		self.to_check = []
@@ -235,7 +299,7 @@ class Pathfind(object):
 					if r1.next_pos == r2.next_pos:
 						if self.verbose:
 							print("conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
-						if r1.next_action.name == "move": # not r1.in_conflict
+						if (r1.next_action.name == "move") and (not r1.in_conflict): # not r1.in_conflict
 							if self.verbose:
 								print("r"+str(r1.id)+" waits", file=verbose_out)
 							r1.wait()
@@ -247,95 +311,78 @@ class Pathfind(object):
 							self.state[r2.next_pos[0]-1][r2.next_pos[1]-1] = 0
 
 					if ((r1.next_pos == r2.pos) and (r1.pos == r2.next_pos)):
-						r1.in_conflict = True
-						r2.in_conflict = True
-
 						if self.verbose:
 							print("swapping conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t), file=verbose_out)
-						if (r1.next_action.name == "move") and (r2.next_action.name == "move"): # method only works if both move
+						# first check for cases where one of the robots is already in a conflict
+						if (r1.in_conflict and not r2.in_conflict):
+							if self.verbose:
+								print("r"+str(r1.id)+" already in conflict so r"+str(r2.id)+" has to dodge", file=verbose_out)
+							self.get_nested_dodge(r2, r1)
+							r2.use_crossroad()
+							if r2 not in self.to_check:
+								self.to_check.append(r2)
+							self.state[r2.next_pos[0]-1][r2.next_pos[1]-1] = 0
+						elif (not r1.in_conflict and r2.in_conflict):
+							if self.verbose:
+								print("r"+str(r2.id)+" already in conflict so r"+str(r1.id)+" has to dodge", file=verbose_out)
+							self.get_nested_dodge(r1, r2)
+							r1.use_crossroad()
+							if r1 not in self.to_check:
+								self.to_check.append(r1)
+							self.state[r1.next_pos[0]-1][r1.next_pos[1]-1] = 0
+						# TODO: case for when both robots are already in conflict (only possible if new conflicts is at a crossing)
+						# none of the robots are already in a conflict
+						else:
+							r1.in_conflict = True
+							r2.in_conflict = True
+							r1.conflict_partner = r2
+							r2.conflict_partner = r1
+
 							# new functions for finding the crossroad -> add benchmarking as well *****************************
 							r1.update_state(self.state)
 							r1.find_crossroad()
 							r2.update_state(self.state)
 							r2.find_crossroad()
 
-							if r1.cross_length < r2.cross_length and r1.cross_length != -1:
-								print("r"+str(r1.id)+" dodges", file=verbose_out)
-								# detemine in which direction r1 has to dodge
-								# get direction of r2 moving onto crossing and direction of r2 moving from crossing -> new function ***************
-								for atom in r2.model:
-									if atom.name == "move":
-										#r2.t-1 = timesteps r2 has completed, r1.cross_length = time r1 takes to crossing +1 because r2 takes one step more to crossing +1 beacuse we need the next move atom
-										if atom.arguments[2].number == r2.t-1 + r1.cross_length +1:
-											move_to_cross = atom
-										if atom.arguments[2].number == r2.t-1 + r1.cross_length +1 +1:
-											move_from_cross = atom
-								# cross_model contains moves for all possible direction off the crossing
-								# one needs to be chosen
-								second_move = False
-								for atom in r1.cross_model:
-									if atom.name == "move":
-										if atom.arguments[2].number == r1.cross_length+1:
-											# remove the direction from which the other robot is coming
-											if ((atom.arguments[0].number == -1*move_to_cross.arguments[0].number) and
-												(atom.arguments[1].number == -1*move_to_cross.arguments[1].number)):
-												r1.cross_model.remove(atom)
-											# remove the direction in which the other robot is moving
-											elif ((atom.arguments[0].number == move_from_cross.arguments[0].number) and
-												(atom.arguments[1].number == move_from_cross.arguments[1].number)):
-												r1.cross_model.remove(atom)
-											# now atleast 1 direction is left but there could be a second one
-											# the first direction will be used
-											elif not second_move:
-												second_move = True
-											# the possible other direction will be removed
-											else:
-												r1.cross_model.remove(atom)
+							if (r1.cross_length < r2.cross_length and r1.cross_length != -1) or (r2.cross_length == -1):
+								#print(r1.cross_model)
+								if self.verbose:
+									print("r"+str(r1.id)+" dodges", file=verbose_out)
+								self.get_dodging_dir(r1,r2)
+								#print(r1.cross_model, file=verbose_out)
 								r1.use_crossroad() # this also generate rest of plan (returning to start)
+								#print("model with returning: ",end='', file=verbose_out)
+								#print(r1.cross_model, file=verbose_out)
+								if r1 not in self.to_check:
+									self.to_check.append(r1)
+								self.state[r1.next_pos[0]-1][r1.next_pos[1]-1] = 0
 
-							if r1.cross_length < r2.cross_length:
-								print("r"+str(r2.id)+" dodges", file=verbose_out)
-								for atom in r1.model:
-									if atom.name == "move":
-										if atom.arguments[2].number == r1.t-1 + r2.cross_length +1:
-											move_to_cross = atom
-										if atom.arguments[2].number == r1.t-1 + r2.cross_length +1 +1:
-											move_from_cross = atom
-								second_move = False
-								for atom in r2.cross_model:
-									if atom.name == "move":
-										if atom.arguments[2].number == r2.cross_length+1:
-											if ((atom.arguments[0].number == -1*move_to_cross.arguments[0].number) and
-												(atom.arguments[1].number == -1*move_to_cross.arguments[1].number)):
-												r2.cross_model.remove(atom)
-											elif ((atom.arguments[0].number == move_from_cross.arguments[0].number) and
-												(atom.arguments[1].number == move_from_cross.arguments[1].number)):
-												r2.cross_model.remove(atom)
-											elif not second_move:
-												second_move = True
-											else:
-												r2.cross_model.remove(atom)
+							else:
+								#print(r2.cross_model)
+								if self.verbose:
+									print("r"+str(r2.id)+" dodges", file=verbose_out)
+								self.get_dodging_dir(r2,r1)
+								#print(r2.cross_model, file=verbose_out)
 								r2.use_crossroad()
+								#print("model with returning: ",end='', file=verbose_out)
+								#print(r2.cross_model, file=verbose_out)
+								if r2 not in self.to_check:
+									self.to_check.append(r2)
+								self.state[r2.next_pos[0]-1][r2.next_pos[1]-1] = 0
 
-						# not needed because in case of swapping conflict both robots move, all non-swapping conflicts already handeld earlier
-						"""else:
-							if r1.next_action.name != "move":
-								if self.verbose:
-									print("only r2 moves", file=verbose_out)
-								r2.update_state(self.state)
-								r2.find_new_plan()
-								r2.use_new_plan()
-							if r2.next_action.name != "move":
-								if self.verbose:
-									print("only r1 moves", file=verbose_out)
-								r1.update_state(self.state)
-								r1.find_new_plan()
-								r1.use_new_plan()"""
 
 			for robot in self.robots:
-				self.perform_action(robot)
+				if robot.using_crossroad: # if robot is the dodging robot in a conflict
+					self.perform_action(robot)
+					if not robot.using_crossroad: # not dodging anymore after the action
+						# -> conflict resolution is finished -> both robots aren't in conflict anymore
+						robot.in_conflict = False
+						if robot.conflict_partner is not None:
+							robot.conflict_partner.in_conflict = False
+				else:
+					self.perform_action(robot)
 
-		if benchmark:
+		if self.benchmark:
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
 	def parse_instance(self):
@@ -580,7 +627,7 @@ if __name__ == "__main__":
 	parser.add_argument("-b", "--benchmark", help="use benchmark output (possible verbose output will be redirected to stdout)", default=False, action="store_true")
 	parser.add_argument("-s", "--strategy", help="conflict solving strategy to be used (default: sequential)", choices = ['sequential','shortest','crossing'],default = 'sequential', type = str)
 	parser.add_argument("-i", "--internal", help="disables use of external atoms", default=False, action="store_true")
-	parser.add_argument("-h", "--highways", help="generate highway tuples if they are not given in the instance", default = False, action = "store_true")
+	parser.add_argument("-H", "--Highways", help="generate highway tuples if they are not given in the instance", default = False, action = "store_true")
 	parser.add_argument("-e", "--encoding", help="encoding to be used (default: ./pathfind.lp)", default = './pathfind.lp', type = str)
 	args = parser.parse_args()
 	benchmark = args.benchmark
@@ -589,7 +636,7 @@ if __name__ == "__main__":
 	# Initialize the Pathfind object
 	if benchmark:
 		t1 = time()
-	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark, not args.internal, args.highways)
+	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark, not args.internal, args.Highways)
 	if benchmark:
 		t2 = time()
 		initTime = t2-t1
