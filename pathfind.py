@@ -210,27 +210,37 @@ class Pathfind(object):
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
 	def get_dodging_dir(self, r1, r2):
+		#print(r1.cross_pos, file=verbose_out)
+		#print(r1.cross_length, file=verbose_out)
+		#print(r2.model, file=verbose_out)
 		# detemine in which direction r1 has to dodge
 		# get direction of r2 moving onto crossing and direction of r2 moving from crossing -> new function ***************
 
 		# if the other robot doesn't actually go to the crossing (for example moves to a pickingstation)
 		# the robot doesn't need to dodge completely
 		t_finished = None # save time when robot changes from path to crossing
+		move_to_cross = None
+		move_from_cross = None
 		for atom in r2.model:
 			if atom.name == "move":
 				#r2.t-1 = timesteps r2 has completed, r1.cross_length = time r1 takes to crossing +1 because r2 takes one step more to crossing +1 beacuse we need the next move atom
 				if atom.arguments[2].number == r2.t-1 + r1.cross_length +1:
 					move_to_cross = atom
+					if move_from_cross is not None:
+						break # we have all directions we need so we can stop the loop
 				if atom.arguments[2].number == r2.t-1 + r1.cross_length +1 +1:
 					move_from_cross = atom
-					break # we have all directions we need so we can stop the loop
+					if move_to_cross is not None:
+						break # we have all directions we need so we can stop the loop
 			else:
 				if (t_finished is None) and (atom.arguments[0].number > self.t):
 					# we didn't reach the crossing but have a action atom
 					t_finished = atom.arguments[0].number-1 - r2.t # r2.t-1 ???????
-					break # the robot has left the path to the crossing so we don't need to look at the next atoms
+					#break # the robot has left the path to the crossing so we don't need to look at the next atoms
 		# cross_model contains moves for all possible direction off the crossing
 		# one needs to be chosen
+		if (move_to_cross is not None) and (move_from_cross is not None):
+			t_finished = None
 		first_move = True
 		filtered_model = []
 		if t_finished is None:
@@ -259,6 +269,15 @@ class Pathfind(object):
 					if atom.arguments[2].number <= t_finished:
 						filtered_model.append(atom)
 
+		#print("move_to_cross: ", end='', file=verbose_out)
+		#print(move_to_cross, file=verbose_out)
+		#print("move_from_cross: ", end='', file=verbose_out)
+		#print(move_from_cross, file=verbose_out)
+		#print("cross_model: ", end='', file=verbose_out)
+		#print(r1.cross_model)
+		#print("filtered_model: ", end='', file=verbose_out)
+		#print(filtered_model, file=verbose_out)
+
 		r1.cross_model = list(filtered_model)
 
 	def get_nested_dodge(self, r1, r2):
@@ -268,10 +287,12 @@ class Pathfind(object):
 		for atom in r2.cross_model:
 			if atom.arguments[2].number > t_return: # second half of plan not needed
 				break
-			if atom.arguments[2].number != 0: # arguments t changed to t-1
-				r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-1, atom.arguments[3].number]))
+			if atom.arguments[2].number > 1+(r2.t-1): # arguments t changed to t-1, != 1 because first move not needed, +r2.t-1 for moves which are already done by r2
+				r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-1-(r2.t-1), atom.arguments[3].number]))
 				if atom.arguments[2].number == t_return: # last move before returning is needed two times
-					r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number, atom.arguments[3].number]))
+					r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-(r2.t-1), atom.arguments[3].number]))
+		#print("nested model: ", end='', file=verbose_out)
+		#print(r1.cross_model, file=verbose_out)
 
 	def run_crossing(self):
 		self.to_check = []
@@ -341,6 +362,8 @@ class Pathfind(object):
 							# new functions for finding the crossroad -> add benchmarking as well *****************************
 							r1.update_state(self.state)
 							r1.find_crossroad()
+							#print(r2.t, file=verbose_out)
+							#print(r2.model, file=verbose_out)
 							r2.update_state(self.state)
 							r2.find_crossroad()
 
