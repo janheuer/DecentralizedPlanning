@@ -217,9 +217,11 @@ class Robot(object):
 		self.t = 0
 		self.get_next_action()
 		self.t = 1
+		#print("nested model with return: ", end='', file=sys.stderr)
 		#print(self.cross_model, file=sys.stderr)
 
 	def get_next_action(self):
+		#print(self.t, file=sys.stderr)
 		next_action = False
 		if not self.using_crossroad:
 			for atom in self.model:
@@ -249,8 +251,9 @@ class Robot(object):
 				self.t = self.t_model_done
 				self.get_next_action()
 				#print(self.next_action, file=sys.stderr)
-				self.t += 1
+				#self.t += 1
 				#print("resuming with old plan from "+str(self.t), file=sys.stderr)
+				#print(self.model, file=sys.stderr)
 
 	def action(self):
 		if self.plan_finished:
@@ -274,6 +277,7 @@ class Robot(object):
 					elif name == "deliver":
 						self.deliverdone = True
 						args = [self.order[0], self.order[1], 1]
+				#print(name,args, file=sys.stderr)
 				self.get_next_action()
 				self.t += 1
 				return name, args
