@@ -447,6 +447,8 @@ class Pathfind(object):
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
 	def get_dodging_dir(self, r1, r2):
+		#self.print_verbose("r"+str(r1.id)+" cross_model: "+str(r1.cross_model))
+		#self.print_verbose("r"+str(r2.id)+" model: "+str(r2.model))
 		t_finished = None # save time when r2 changes from path to crossing
 		move_to_cross = None
 		move_from_cross = None
@@ -460,7 +462,7 @@ class Pathfind(object):
 					move_from_cross = atom
 					if move_to_cross is not None:
 						break # we have all directions we need so we can stop the loop
-				elif (atom.arguments[2].number > r2.t-1+1) and (atom.arguments[2].number < (r2.t-1 + r1.cross_length +1+1)):
+				if (atom.arguments[2].number > r2.t-1+1) and (atom.arguments[2].number < (r2.t-1 + r1.cross_length +1+1)):
 					#self.print_verbose(r2.t-1)
 					#self.print_verbose(atom)
 					#self.print_verbose(r1.cross_model[atom.arguments[2].number-(r2.t-1)-1-1])
@@ -475,6 +477,7 @@ class Pathfind(object):
 
 		filtered_model = []
 		first_move = True
+		#self.print_verbose(move_from_cross)
 		# r1 has to dodge all the way
 		if t_finished is None:
 			for atom in r1.cross_model:
@@ -571,6 +574,7 @@ class Pathfind(object):
 			self.change_crossroad(p)
 
 	def change_crossroad(self, r):
+		#self.print_verbose("r"+str(r.id)+" cross_model: "+str(r.cross_model))
 		r.use_crossroad()
 		if r not in self.to_check:
 			self.to_check.append(r)
@@ -641,16 +645,26 @@ class Pathfind(object):
 		#self.print_verbose(r2.cross_model)
 		r1.cross_model = []
 		steps_to_do = r2.cross_done - (r2.t-1)
-		for atom in r2.cross_model:
-			if atom.arguments[2].number > steps_to_do:
-				# all moves will be moved to one timestep earlier
-				# last is also duplicated
+		#self.print_verbose("add_nested_dodge12 for r"+str(r1.id))
+		#self.print_verbose(r2.cross_model)
+		#self.print_verbose(r2.cross_done)
+		#self.print_verbose(r2.t-1)
+		#self.print_verbose(steps_to_do)
+		if steps_to_do == 1:
+			for atom in r2.cross_model:
 				if atom.arguments[2].number == len(r2.cross_model):
-					r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-steps_to_do, atom.arguments[3].number]))
-					r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-steps_to_do+1, atom.arguments[3].number]))
-				# and first move is removed completely
-				elif atom.arguments[2].number != 1:
-					r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-steps_to_do, atom.arguments[3].number]))
+					r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, 1, atom.arguments[3].number]))
+		else:
+			for atom in r2.cross_model:
+				if atom.arguments[2].number >= steps_to_do:
+					# all moves will be moved to one timestep earlier
+					# last is also duplicated
+					if atom.arguments[2].number == len(r2.cross_model):
+						r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-steps_to_do, atom.arguments[3].number]))
+						r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-steps_to_do+1, atom.arguments[3].number]))
+					# and first move is removed completely
+					elif atom.arguments[2].number != 1:
+						r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number-steps_to_do, atom.arguments[3].number]))
 
 		next_pos = list(r1.pos)
 		for atom in r1.cross_model:
@@ -723,7 +737,6 @@ class Pathfind(object):
 							self.add_wait(r2)
 						# if non fit this criterium an arbitrary robot waits
 						else:
-							# right now this is just always the first robot
 							# all partners will also have to wait
 							self.add_wait(r1)
 							if r1.conflict_partners:
@@ -733,6 +746,8 @@ class Pathfind(object):
 					# swapping conflicts are solved properly
 					elif ((r1.next_pos == r2.pos) and (r1.pos == r2.next_pos)):
 						self.print_verbose("swapping conflict between "+str(r1.id)+" and "+str(r2.id)+" at t="+str(self.t))
+						#self.print_verbose(r1.in_conflict)
+						#self.print_verbose(r2.in_conflict)
 						if (not r1.in_conflict) and (r2.dodging):
 							self.add_nested_crossroad(r1, r2)
 						elif (r1.dodging) and (not r2.in_conflict):
