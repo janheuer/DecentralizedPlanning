@@ -11,9 +11,11 @@ robot(1).
 #program external.
 #external start(X, Y, R) : init(object(node, _), value(at, (X, Y))), robot(R).
 %start(1, 4, 1).
+%crossings can be blocked (needed for cases d-g)
+#external block(X, Y) : init(object(node, _), value(at, (X, Y))).
 
 #program base.
-cross(X, Y) :- highway(X, Y), #count{X2, Y2: highway(X2, Y2), dir(DX, DY), X2 = X+DX, Y2 = Y+DY} >= 3.
+cross(X, Y) :- highway(X, Y), #count{X2, Y2: highway(X2, Y2), dir(DX, DY), X2 = X+DX, Y2 = Y+DY} >= 3, not block(X,Y).
 
 {goal(N, X, Y)} :- cross(X, Y), start(X2, Y2, _), N = |X - X2| + |Y - Y2|.
 :- #count{N, X, Y : goal(N, X, Y)} != 1.
