@@ -54,13 +54,28 @@ class Robot(object):
 		self.model = []
 		self.plan_length = -1
 
+		self.next_action = clingo.Function("", [])
+
+		self.crossing_strategy = False
+
+	def init_crossing(self):
+		self.crossing_strategy = True
+
 		self.using_crossroad = False
 		self.crossroad = None
 
-		self.next_action = clingo.Function("", [])
-
 		self.in_conflict = False
-		self.conflict_partner = None
+		self.dodging = False
+		#self.conflict_partner = None
+		self.cross_done = -1
+		self.blocked_crossings = []
+		self.conflict_partners = {}
+
+		if self.external:
+			self.crossroad = clingo.Control()
+			self.crossroad.load("./crossroad.lp")
+			self.crossroad.load(self.instance)
+			self.crossroad.ground([("base", []), ("external", [])])
 
 	def find_new_plan(self):
 		self.old_model = list(self.model)
@@ -162,19 +177,29 @@ class Robot(object):
 			self.use_new_plan()
 		return found_model
 
+	def block_crossings(self, crossings):
+		self.blocked_crossings = list(crossings)
+
+	def update_partners(self, partner, t_conflict):
+		# update conflict_partners dict
+		# key: robot object (the conflict partner)
+		# value: how long is the robot conflict partner (as timestep)
+		if partner not in self.conflict_partners:
+			self.conflict_partners[partner] = self.t
+		self.conflict_partners[partner] += t_conflict
+
 	def find_crossroad(self):
 		if self.external:
-			if self.crossroad is None:
-				self.crossroad = clingo.Control()
-				self.crossroad.load("./crossroad.lp")
-				self.crossroad.load(self.instance)
-				self.crossroad.ground([("base", []), ("external", [])])
 			self.crossroad.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), True)
+			for cross in self.blocked_crossings:
+				self.crossroad.assign_external(clingo.Function("block", [cross[0],cross[1]]), True)
 		else:
 			self.crossroad = clingo.Control()
 			self.crossroad.load("./crossroad.lp")
 			self.crossroad.load(self.instance)
 			self.crossroad.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
+			for cross in self.blocked_crossings:
+				self.prg.add("base", [], "block("+str(cross[0])+", "+str(cross[1])+").")
 			self.crossroad.ground([("base", []), ("start", [self.pos[0], self.pos[1]])])
 
 		self.cross_model = []
@@ -195,67 +220,110 @@ class Robot(object):
 			else:
 				self.cross_length = -1
 
+		# cross_model needs to be sorted in ascending order
+		self.cross_model.sort(key=lambda atom:atom.arguments[2].number)
+		#print(self.cross_model, file=sys.stderr)
+
 		if self.external:
 			self.crossroad.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), False)
+			for cross in self.blocked_crossings:
+				self.crossroad.assign_external(clingo.Function("block", [cross[0],cross[1]]), False)
+
+	def set_in_conflict(self, t_conflict):
+		self.in_conflict = True
+		if self.cross_done == -1:
+			self.cross_done = self.t-1
+		self.cross_done += t_conflict
 
 	def use_crossroad(self):
-		#print("starting crossroad at "+str(self.t), file=sys.stderr)
-		self.using_crossroad = True
-		#print(self.next_action, file=sys.stderr)
-		self.t_model_done = self.t -1 # save how many steps of plan are already completed
+		#print(self.model, file=sys.stderr)
+		#print(self.cross_model, file=sys.stderr)
+		self.in_conflict = True
+		self.dodging = True
+		if self.cross_done == -1:
+			self.cross_done = self.t-1
+		self.cross_done += len(self.cross_model)
+		# total time added by dodging
+		total_t = 2*len(self.cross_model)
+		self.cross_length = total_t
 
-		# total corss_model length will be corss_length (time to corssing) +1 (to actually dodge other robot) *2 (for returning)
-		# construct the dodging move in pathfind ???
-		total_t = 2*len(self.cross_model) # len(cross_model) != cross_length ->could have changed because robot doesn't have to dodge all the way
+		# generate part of the model for returning from crossing
 		return_model = []
 		for atom in self.cross_model:
 			if atom.name == "move":
+				# invert directions and time
 				return_model.append(clingo.Function("move", [-1*atom.arguments[0].number, -1*atom.arguments[1].number, total_t-(atom.arguments[2].number-1), 1]))
-		self.cross_model += return_model # add all returning moves to the model
-		self.cross_length = total_t
+		#self.cross_model += return_model
 
-		self.t = 0
+		# merge cross_model and model to new_model
+		new_model = []
+		# first make space for cross_model
+		for atom in self.model:
+			if atom.name == "move":
+				# already done steps can be copied
+				if atom.arguments[2].number < self.t:
+					new_model.append(atom)
+				# steps in future have to be move back total_t timesteps
+				else:
+					new_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number+total_t, atom.arguments[3].number]))
+			# same thing for all other action atoms
+			elif atom.name in ["pickup", "putdown"]:
+				if atom.arguments[0].number < self.t:
+					new_model.append(atom)
+				else:
+					new_model.append(clingo.Function(atom.name, [atom.arguments[0].number+total_t, atom.arguments[1].number]))
+			elif atom.name == "deliver":
+				if atom.arguments[0].number < self.t:
+					new_model.append(atom)
+				else:
+					new_model.append(clingo.Function(atom.name, [atom.arguments[0].number+total_t, atom.arguments[1].number, atom.arguments[2].number, atom.arguments[3].number]))
+			else:
+				new_model.append(atom)
+
+		# add cross_model
+		for atom in self.cross_model:
+			new_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number+self.t-1, atom.arguments[3].number]))
+		for atom in return_model:
+			new_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number, atom.arguments[2].number+self.t-1, atom.arguments[3].number]))
+
+		self.model = new_model
+		self.t -= 1
 		self.get_next_action()
-		self.t = 1
-		#print("nested model with return: ", end='', file=sys.stderr)
-		#print(self.cross_model, file=sys.stderr)
+		self.t += 1
+
+		#print(self.model, file=sys.stderr)
 
 	def get_next_action(self):
-		#print(self.t, file=sys.stderr)
 		next_action = False
-		if not self.using_crossroad:
-			for atom in self.model:
-				if atom.name == "move" and atom.arguments[2].number == self.t+1:
-					self.next_action = atom
-					self.next_pos[0] = self.pos[0] + atom.arguments[0].number
-					self.next_pos[1] = self.pos[1] + atom.arguments[1].number
-					next_action = True
-				elif atom.name in ["pickup", "deliver", "putdown"] and atom.arguments[0].number == self.t+1:
-					self.next_action = atom
-					next_action = True
-			if not next_action:
-				self.plan_finished = True
-				self.next_pos = list(self.pos) # needed for shortest_replanning strategy
-				self.next_action = clingo.Function("", [])
-				# if a robot is deadlocked we still need to know its next position to prevent conflicts
-		else:
-			for atom in self.cross_model:
-				if atom.name == "move" and atom.arguments[2].number == self.t+1:
-					self.next_action = atom
-					self.next_pos[0] = self.pos[0] + atom.arguments[0].number
-					self.next_pos[1] = self.pos[1] + atom.arguments[1].number
-					next_action = True
-			if not next_action:
-				self.using_crossroad = False
-				# restore to old plan
-				self.t = self.t_model_done
-				self.get_next_action()
-				#print(self.next_action, file=sys.stderr)
-				#self.t += 1
-				#print("resuming with old plan from "+str(self.t), file=sys.stderr)
-				#print(self.model, file=sys.stderr)
+		for atom in self.model:
+			if atom.name == "move" and atom.arguments[2].number == self.t+1:
+				self.next_action = atom
+				self.next_pos[0] = self.pos[0] + atom.arguments[0].number
+				self.next_pos[1] = self.pos[1] + atom.arguments[1].number
+				next_action = True
+			elif atom.name in ["pickup", "deliver", "putdown"] and atom.arguments[0].number == self.t+1:
+				self.next_action = atom
+				next_action = True
+		if not next_action:
+			self.plan_finished = True
+			self.next_pos = list(self.pos) # needed for shortest_replanning strategy
+			self.next_action = clingo.Function("", [])
+			# if a robot is deadlocked we still need to know its next position to prevent conflicts
 
 	def action(self):
+		# special stuff for when crossing strategy is used
+		if self.crossing_strategy:
+			if self.t == self.cross_done:
+				self.in_conflict = False
+				self.dodging = False
+				# conflict partners keep track themselfes
+				#if self.conflict_partner is not None:
+				#	self.conflict_partner.in_conflict = False
+				self.cross_done = -1
+			for partner in self.conflict_partners:
+				if self.t == self.conflict_partners[partner]:
+					self.conflict_partners.pop(partner)
+
 		if self.plan_finished:
 			return "",[]
 		else:
