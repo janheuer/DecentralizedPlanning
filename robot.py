@@ -50,6 +50,7 @@ class Robot(object):
 
 		self.plan_finished = True
 		self.waiting = False # The robot currently does/does not need to wait
+		self.waiting_on = []
 
 		self.model = []
 		self.plan_length = -1
@@ -199,7 +200,7 @@ class Robot(object):
 			self.crossroad.load(self.instance)
 			self.crossroad.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
 			for cross in self.blocked_crossings:
-				self.prg.add("base", [], "block("+str(cross[0])+", "+str(cross[1])+").")
+				self.crossroad.add("base", [], "block("+str(cross[0])+", "+str(cross[1])+").")
 			self.crossroad.ground([("base", []), ("start", [self.pos[0], self.pos[1]])])
 
 		self.cross_model = []
@@ -210,6 +211,7 @@ class Robot(object):
 				found_model = True
 				opt = m
 			if found_model:
+				#print(opt, file=sys.stderr)
 				for atom in opt.symbols(shown=True):
 					if atom.name == "goal":
 						self.cross_length = atom.arguments[0].number
@@ -233,11 +235,11 @@ class Robot(object):
 		self.in_conflict = True
 		if self.cross_done == -1:
 			self.cross_done = self.t-1
-		self.cross_done += t_conflict
+		self.cross_done += t_conflict+1
 
 	def use_crossroad(self):
 		#print(self.model, file=sys.stderr)
-		#print(self.cross_model, file=sys.stderr)
+		#print("r"+str(self.id)+" cross_model: "+str(self.cross_model), file=sys.stderr)
 		self.in_conflict = True
 		self.dodging = True
 		if self.cross_done == -1:
@@ -352,6 +354,7 @@ class Robot(object):
 			else:
 				#print ("%s is waiting at %d" %(self.id, self.t) )
 				self.waiting = False
+				self.waiting_on = []
 				self.t -= 1
 				self.get_next_action()
 				self.t += 1
