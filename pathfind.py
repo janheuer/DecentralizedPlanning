@@ -29,6 +29,7 @@ class Pathfind(object):
 			self.ground_times = []
 			self.solve_times = []
 			self.resolve_times = []
+			self.real_time = 0
 			ts = time()
 		self.prg.ground([("base", [])])
 		if self.benchmark:
@@ -366,15 +367,29 @@ class Pathfind(object):
 		"""
 		# self.to_check is a list of robots which still have to be checked for conflicts
 		self.to_check = []
-
+		
+		# setup variables to express realtime in the benchmark
+		if self.benchmark:
+			rltime = []		# tracks the time for resolves
+			stime = 0		# tracks the time for non-conflict solves
+			for r in self.robots:
+				rltime.append(0)
+		
+		
 		while self.orders != [] or self.orders_in_delivery != []:
-			self.t += 1
+			self.t += 1 
 
+			if self.benchmark:
+				stime = 0
+			
 			# check that every robot has a plan
 			for r in self.robots:
+				if self.benchmark:
+					rltime[r.id - 1] = 0
 				# no order asssigned or no plan because in a deadlock
 				if (r.shelf == -1) or (r.next_action.name == ""):
 					self.plan(r)
+					
 
 			# unmark all old positions
 			for r in self.robots:
@@ -402,9 +417,30 @@ class Pathfind(object):
 						if (r1.next_action.name == "move") and (r2.next_action.name == "move"):
 							# both robots move -> both have to find a new plan
 							# self.replan returns added length of new plan
+							if self.benchmark:
+								if (rltime[r1.id - 1] > rltime[r2.id - 1]):
+									rltime[r2.id - 1] = rltime[r1.id - 1]
+								else:
+									rltime[r1.id - 1] = rltime[r2.id - 1]
+								r1start = time()
+							
 							dr1 = self.replan(r1, 1)
+							
+							if self.benchmark:
+								r1end = time()
+								rltime[r1.id - 1] += r1end - r1start
+								r2start = time()
+								
 							dr2 = self.replan(r2, 2)
 
+							if self.benchmark:
+								r2end = time()
+								rltime[r2.id - 1] += r2end - r2start
+								if (rltime[r1.id - 1] > rltime[r2.id - 1]):
+									rltime[r2.id - 1] = rltime[r1.id - 1]
+								else:
+									rltime[r1.id - 1] = rltime[r2.id - 1]
+							
 							# choose which robot uses new plan
 							# case 1: both robots are deadlocked
 							if ((dr1 == -1) and (dr2 == -1)):
@@ -438,11 +474,17 @@ class Pathfind(object):
 								self.print_verbose("r"+str(r1.id)+" delivers")
 								self.add_wait(r2)
 
+			if self.benchmark:
+				self.real_time += max(rltime)
+				#print("t" + str(self.t) + "rlt=" + str(ttime), file=sys.stderr, end='')
+				
+				
 			# perform all next actions
 			for robot in self.robots:
 				if robot.next_action.name != "":
 					self.perform_action(robot)
-
+				
+					
 		if self.benchmark:
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
@@ -874,6 +916,7 @@ if __name__ == "__main__":
 			solveTimeRun += t
 		print("TstR=%s," %(solveTimeRun), file=sys.stderr, end='') # Total solve time in run
 		print("Tst=%s," %(solveTimeInit+solveTimeRun), file=sys.stderr, end='') # Total solve time
+		print("Trlt=%s," %(solveTimeInit+solveTimeRun+pathfind.real_time))
 
 		resolveTime = 0
 		for t in pathfind.resolve_times:
