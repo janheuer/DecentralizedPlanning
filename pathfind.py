@@ -916,7 +916,7 @@ if __name__ == "__main__":
 			solveTimeRun += t
 		print("TstR=%s," %(solveTimeRun), file=sys.stderr, end='') # Total solve time in run
 		print("Tst=%s," %(solveTimeInit+solveTimeRun), file=sys.stderr, end='') # Total solve time
-		print("Trlt=%s," %(solveTimeInit+solveTimeRun+pathfind.real_time))
+		print("Trlt=%s," %(solveTimeInit+solveTimeRun+pathfind.real_time), file=sys.stderr, end='') # Total real time
 
 		resolveTime = 0
 		for t in pathfind.resolve_times:
