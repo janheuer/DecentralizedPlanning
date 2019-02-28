@@ -7,10 +7,12 @@ robot(1).
 
 #program external.
 #external start(X, Y, R) : init(object(node, _), value(at, (X, Y))), robot(R).
-%crossings can be blocked 
+%crossings can be blocked
 #external block(X, Y) : init(object(node, _), value(at, (X, Y))).
 
 #program base.
+% when using -i clingo prints error: block(X,Y) does not occur in any rule head
+block(0,0).
 cross(X, Y) :- highway(X, Y), #count{X2, Y2: highway(X2, Y2), dir(DX, DY), X2 = X+DX, Y2 = Y+DY} >= 3, not block(X,Y).
 
 {goal(N, X, Y)} :- cross(X, Y), start(X2, Y2, _), N = |X - X2| + |Y - Y2|.
