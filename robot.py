@@ -3,16 +3,6 @@ import sys # only needed for debugging
 import clingo
 
 class Robot(object):
-	# next_pos = [x,y]
-	# next_action = move | pickup | deliver | putdown
-	# model
-	# order = [orderID,productID,stationID]
-	# state
-	# pickupdone
-	# deliverdone
-	# t
-	# shelf
-
 	def __init__(self, id, start, encoding, instance, external, highways):
 		self.id = id
 		self.start = list(start)
@@ -42,15 +32,12 @@ class Robot(object):
 			parts = []
 			parts.append(("base", []))
 			parts.append(("decentralized", []))
-			#print("highways: ")
-			#print(self.highways)
 			if self.highways:
 				parts.append(("highways", []))
 			self.prg.ground(parts)
 
 		self.plan_finished = True
 		self.waiting = False # The robot currently does/does not need to wait
-		self.waiting_on = []
 
 		self.model = []
 		self.plan_length = -1
@@ -67,10 +54,12 @@ class Robot(object):
 
 		self.in_conflict = False
 		self.dodging = False
-		#self.conflict_partner = None
 		self.cross_done = -1
 		self.blocked_crossings = []
 		self.conflict_partners = {}
+		self.waiting_on = []
+
+		self.replanned = False
 
 		if self.external:
 			self.crossroad = clingo.Control()
@@ -186,7 +175,7 @@ class Robot(object):
 		# key: robot object (the conflict partner)
 		# value: how long is the robot conflict partner (as timestep)
 		if partner not in self.conflict_partners:
-			self.conflict_partners[partner] = self.t
+			self.conflict_partners[partner] = self.t-1
 		self.conflict_partners[partner] += t_conflict
 
 	def find_crossroad(self):
@@ -211,12 +200,9 @@ class Robot(object):
 				found_model = True
 				opt = m
 			if found_model:
-				#print(opt, file=sys.stderr)
 				for atom in opt.symbols(shown=True):
 					if atom.name == "goal":
 						self.cross_length = atom.arguments[0].number
-						#print([atom.arguments[1].number,atom.arguments[2]], file=sys.stderr)
-						#self.cross_pos = [atom.arguments[1].number,atom.arguments[2]]
 					else:
 						self.cross_model.append(atom)
 			else:
@@ -224,7 +210,6 @@ class Robot(object):
 
 		# cross_model needs to be sorted in ascending order
 		self.cross_model.sort(key=lambda atom:atom.arguments[2].number)
-		#print(self.cross_model, file=sys.stderr)
 
 		if self.external:
 			self.crossroad.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), False)
@@ -238,13 +223,17 @@ class Robot(object):
 		self.cross_done += t_conflict+1
 
 	def use_crossroad(self):
-		#print(self.model, file=sys.stderr)
-		#print("r"+str(self.id)+" cross_model: "+str(self.cross_model), file=sys.stderr)
+		if self.cross_model == []:
+			return
+
 		self.in_conflict = True
+		if not self.dodging:
+			self.cross_done = -1
 		self.dodging = True
 		if self.cross_done == -1:
 			self.cross_done = self.t-1
 		self.cross_done += len(self.cross_model)
+
 		# total time added by dodging
 		total_t = 2*len(self.cross_model)
 		self.cross_length = total_t
@@ -255,7 +244,6 @@ class Robot(object):
 			if atom.name == "move":
 				# invert directions and time
 				return_model.append(clingo.Function("move", [-1*atom.arguments[0].number, -1*atom.arguments[1].number, total_t-(atom.arguments[2].number-1), 1]))
-		#self.cross_model += return_model
 
 		# merge cross_model and model to new_model
 		new_model = []
@@ -293,7 +281,9 @@ class Robot(object):
 		self.get_next_action()
 		self.t += 1
 
-		#print(self.model, file=sys.stderr)
+	def duplicate_last_move(self):
+		last_move = self.cross_model[len(self.cross_model)-1]
+		self.cross_model.append(clingo.Function(last_move.name, [last_move.arguments[0].number, last_move.arguments[1].number, last_move.arguments[2].number+1, last_move.arguments[3].number]))
 
 	def get_next_action(self):
 		next_action = False
@@ -308,23 +298,24 @@ class Robot(object):
 				next_action = True
 		if not next_action:
 			self.plan_finished = True
+			# if a robot is deadlocked we still need to know its next position to prevent conflicts
 			self.next_pos = list(self.pos) # needed for shortest_replanning strategy
 			self.next_action = clingo.Function("", [])
-			# if a robot is deadlocked we still need to know its next position to prevent conflicts
 
 	def action(self):
 		# special stuff for when crossing strategy is used
 		if self.crossing_strategy:
-			if self.t == self.cross_done:
+			if self.cross_done == self.t:
 				self.in_conflict = False
 				self.dodging = False
-				# conflict partners keep track themselfes
-				#if self.conflict_partner is not None:
-				#	self.conflict_partner.in_conflict = False
 				self.cross_done = -1
+			new_partners = dict(self.conflict_partners)
 			for partner in self.conflict_partners:
 				if self.t == self.conflict_partners[partner]:
-					self.conflict_partners.pop(partner)
+					new_partners.pop(partner)
+			self.conflict_partners = new_partners
+			if self.replanned and not self.waiting:
+				self.replanned = False
 
 		if self.plan_finished:
 			return "",[]
@@ -347,12 +338,10 @@ class Robot(object):
 					elif name == "deliver":
 						self.deliverdone = True
 						args = [self.order[0], self.order[1], 1]
-				#print(name,args, file=sys.stderr)
 				self.get_next_action()
 				self.t += 1
 				return name, args
 			else:
-				#print ("%s is waiting at %d" %(self.id, self.t) )
 				self.waiting = False
 				self.waiting_on = []
 				self.t -= 1
@@ -381,6 +370,12 @@ class Robot(object):
 			for shelf in self.available_shelves:
 				self.prg.assign_external(clingo.Function("available", [shelf]), False)
 		self.shelf = -1
+
+	def clear_state(self):
+		# mark all positions as free
+		for i in range(len(self.state)):
+			for j in range(len(self.state[0])):
+				self.state[i][j] = 1
 
 	def update_state(self, state):
 		if self.state == []:
