@@ -232,11 +232,10 @@ class Robot(object):
 		self.dodging = True
 		if self.cross_done == -1:
 			self.cross_done = self.t-1
-		self.cross_done += len(self.cross_model)
+		self.cross_done += self.cross_length
 
 		# total time added by dodging
-		total_t = 2*len(self.cross_model)
-		self.cross_length = total_t
+		total_t = 2*self.cross_length
 
 		# generate part of the model for returning from crossing
 		return_model = []
@@ -282,8 +281,21 @@ class Robot(object):
 		self.t += 1
 
 	def duplicate_last_move(self):
-		last_move = self.cross_model[len(self.cross_model)-1]
+		last_move = self.cross_model[self.cross_length-1]
 		self.cross_model.append(clingo.Function(last_move.name, [last_move.arguments[0].number, last_move.arguments[1].number, last_move.arguments[2].number+1, last_move.arguments[3].number]))
+		self.cross_length += 1
+
+	def reset_crossing(self):
+		self.cross_model = []
+		self.replanned = True
+		# set in_conflict flag to False and remove all conflict_partners
+		self.in_conflict = False
+		self.dodging = False
+		self.cross_done = -1
+		old_partners = list(self.conflict_partners.keys())
+		self.conflict_partners = {}
+
+		return old_partners
 
 	def get_next_action(self):
 		next_action = False
