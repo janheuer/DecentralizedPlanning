@@ -25,13 +25,15 @@ Additionally a horizon for the instance is required given by `time(1..N).`
 
 ## Usage
 
+Python (tested with version 2.7) and the python module of [**clingo**](<https://github.com/potassco/clingo>) are required.
+
 ```bash
 python pathfind.py instance
 ```
 
 The conflict solving strategy used, a custom planning encoding and different output options can be specified via command line options.
 
-To get a list of all options run
+To get a list of all options run:
 ```bash
 python pathfind.py --help
 ```
