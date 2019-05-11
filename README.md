@@ -16,7 +16,7 @@ crossroad.lp - Special encoding for the crossing strategy
 
 **Centralized version**
 
-The centralized branch includes a centralized version based on the same python framework using the same encoding (but it only works for instances where the number of robots equals the number of robots).
+The centralized branch includes a centralized version based on the same python framework using the same planning encoding (but it only works for instances where the number of robots equals the number of robots).
 
 ## Instance Format
 
