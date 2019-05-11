@@ -1,12 +1,17 @@
 # Decentralized Planning in the *asprilo* Framework
 
+This project implements a decentralized approach to planning in the [**asprilo**](<https://potassco.org/asprilo>) framework.
+
+The genral idea is that orders are assigned to the robots and each robot then plans its own order without taking into account the other robots.
+During the execution of the plans conflicts are solved according to one of the implemented strategies (sequential, shortest replanning, crossing).
+
 ## Structure
 
 **Python control structure**
 
-pathfind.py - The general python framework 
+pathfind.py - The general python framework distributing orders, simulating the plan execution and resolving conflicts
 
-robot.py - Implements functionality for the robots
+robot.py - Implements functionality for the robots (planning using the [**clingo**](<https://github.com/potassco/clingo>) module)
 
 **Planning encodings**
 
@@ -16,21 +21,20 @@ crossroad.lp - Special encoding for the crossing strategy
 
 **Centralized version**
 
-The centralized branch includes a centralized version based on the same python framework using the same planning encoding (but it only works for instances where the number of robots equals the number of robots).
+The centralized branch includes a centralized version based on the same python framework using the same planning encoding (but it only works for instances where the number of robots equals the number of robots) for comparing the decentralized approach.
 
 ## Instance Format
 
 The input and output format is the normal [**asprilo**](<https://potassco.org/asprilo>) format.
-Additionally a horizon for the instance is required given by `time(1..N).`
+Additionally a horizon for the instance has to be provided by a fact `time(1..N).`
 
 ## Usage
-
-Python (tested with version 2.7) and the python module of [**clingo**](<https://github.com/potassco/clingo>) are required.
 
 ```bash
 python pathfind.py instance
 ```
 
+Python (tested with version 2.7) and the python module of [**clingo**](<https://github.com/potassco/clingo>) are required.
 The conflict solving strategy used, a custom planning encoding and different output options can be specified via command line options.
 
 To get a list of all options run:
