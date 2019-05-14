@@ -25,8 +25,13 @@ The centralized branch includes a centralized version based on the same python f
 
 ## Instance Format
 
-The input and output format is the normal [**asprilo**](<https://potassco.org/asprilo>) format.
+The input format is the normal [**asprilo format**](<https://github.com/potassco/asprilo/blob/master/docs/specification.md#input-format>) (for domain A). However product quantities are ignored (but need to be specified in the input).
+
 Additionally a horizon for the instance has to be provided by a fact `time(1..N).`
+
+The output format follows the [**asprilo format**](<https://github.com/potassco/asprilo/blob/master/docs/specification.md#output-format>) for domain B.
+
+`./instances/` contains several example instances.
 
 ## Usage
 
