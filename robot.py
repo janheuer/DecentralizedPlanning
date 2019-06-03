@@ -10,10 +10,10 @@ class Robot(object):
 
 		self.next_pos = [-1,-1]
 
-		self.state = []
+		self.state = [] # State of the world around the robot as 2D Matrix
 		self.t=-1
 
-		self.order = [-1,-1,-1]
+		self.order = [-1,-1,-1] 
 		self.available_shelves = []
 		self.shelf = -1
 
@@ -46,6 +46,7 @@ class Robot(object):
 
 		self.crossing_strategy = False
 
+	""" Alternative init if for the crossing strategy"""
 	def init_crossing(self):
 		self.crossing_strategy = True
 
@@ -67,6 +68,7 @@ class Robot(object):
 			self.crossroad.load(self.instance)
 			self.crossroad.ground([("base", []), ("external", [])])
 
+	"""Makes the robot solve for a new plan. If you dont want to compare the old and new plan use solve() instead"""
 	def find_new_plan(self):
 		self.old_model = list(self.model)
 		self.old_plan_length = self.plan_length
@@ -74,6 +76,7 @@ class Robot(object):
 		self.model = []
 
 		if self.external:
+			# Assign externals before solving
 			self.prg.assign_external(clingo.Function("start", [self.start[0],self.start[1],1]), False)
 			self.prg.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), True)
 
@@ -88,7 +91,8 @@ class Robot(object):
 			for i in range(len(self.state)):
 				for j in range(len(self.state[0])):
 					self.prg.assign_external(clingo.Function("block", [i+1,j+1]), not self.state[i][j])
-		else:
+		else: # if the flag -i is used
+			# Add all externals directly as literals instead and then ground
 			self.prg = clingo.Control()
 			self.prg.load(self.encoding)
 			self.prg.load(self.instance)
@@ -122,6 +126,8 @@ class Robot(object):
 		self.start = list(self.pos)
 		self.plan_finished = False
 
+		
+		# Solving; Due to the #minimize{}. the last model we find will be optimal
 		found_model = False
 		with self.prg.solve(yield_=True) as h:
 			for m in h:
@@ -138,9 +144,8 @@ class Robot(object):
 		if not found_model:
 			self.plan_length = -1
 			self.next_action = clingo.Function("", [])
-			if self.shelf == -1:
+			if self.shelf == -1: 
 				if self.external:
-					# order freigeben
 					self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
 					for shelf in self.available_shelves:
 						self.prg.assign_external(clingo.Function("available", [shelf]), False)
@@ -148,6 +153,7 @@ class Robot(object):
 
 		return found_model
 
+	"""Only for replanning; The new plan was not satisfactory and the old one is to be used"""
 	def use_old_plan(self):
 		self.model = list(self.old_model)
 		self.plan_length = self.old_plan_length
@@ -155,6 +161,7 @@ class Robot(object):
 		self.t -= 1
 		self.get_next_action()
 		self.t += 1
+
 
 	def use_new_plan(self):
 		self.t = 0
@@ -399,22 +406,22 @@ class Robot(object):
 			for j in range(len(state[0])):
 				if ((i == self.pos[0]-1 and abs(j-(self.pos[1]-1)) == 1) or
 					(abs(i-(self.pos[0]-1)) == 1 and j == self.pos[1]-1)):
-					# roboter kann nur auf felder schauen auf die er sich bewegen koennte
+					# roboter can only look at positions that he can look at
 					self.state[i][j] = state[i][j]
 				else:
-					# alle anderen positionen als frei angenommen
+					# All other positions are considered free
 					self.state[i][j] = 1
 
 	def action_possible(self):
-		# 1 = kann auf feld begehen
-		# 0 = kann nicht auf feld begehen
+		# 1 = position is free
+		# 0 = position is blocked
 		if self.plan_finished:
 			return True
 		if self.next_action.name == "":
 			return False
 		if self.next_action.name == "move":
-			# next_pos ist kein blockiertes feld
+			# next_pos is not a blocked position
 			return self.state[self.next_pos[0]-1][self.next_pos[1]-1]
 		else:
-			# pickup, deliver, putdown koennen immer ausgefuehrt werden
+			# pickup, deliver, putdown can always be done
 			return True

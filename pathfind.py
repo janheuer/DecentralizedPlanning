@@ -9,7 +9,7 @@ import argparse
 import sys
 
 class Pathfind(object):
-	def __init__(self, instance, encoding, model_output, verbose, verbose_out, benchmark, external, highways):
+	def __init__(self, instance, encoding, model_output, verbose, verbose_out, benchmark, external, highways, timeout):
 		"""Assigns initial order to the robots and plans it
 		Instance is saved in data structures by helper function parse_instance
 		(also generates the Robot objects)
@@ -22,7 +22,9 @@ class Pathfind(object):
 		self.benchmark = benchmark
 		self.external = external
 		self.highwaysFlag = highways
-
+		self.start_time = time()
+		self.timeout = timeout
+		
 		self.prg = clingo.Control()
 		self.prg.load(instance)
 		if self.benchmark:
@@ -306,6 +308,9 @@ class Pathfind(object):
 		Finishes when all orders are delivered
 		"""
 		while self.orders != [] or self.orders_in_delivery != []:
+			if self.timeout < time() - self.start_time and self.timeout != 0:
+				print("Timeout after " + str(time() - self.start_time) + "s")
+				sys.exit(0)
 			self.t += 1
 			for robot in self.robots:
 				robot.update_state(self.state)
@@ -316,7 +321,7 @@ class Pathfind(object):
 				self.state[robot.pos[0]-1][robot.pos[1]-1] = 1 # mark old position as free
 				self.perform_action(robot)
 				self.state[robot.pos[0]-1][robot.pos[1]-1] = 0 # mark new position as blocked
-
+				
 		if self.benchmark:
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
@@ -449,6 +454,7 @@ class Pathfind(object):
 								self.change_plan(r1)
 								self.change_plan(r2)
 
+
 							# case 2: r1 is deadlocked or the new plan of r1 adds more time
 							elif (dr1 == -1) or (dr2 <= dr1 and dr2!=-1): # here dr2 can still be -1 -> then dr2<=dr1 would be true therefore the condition dr2!=-1 is needed
 								self.print_verbose("r"+str(r1.id)+" deadlocked or dr"+str(r2.id)+"<=dr"+str(r1.id))
@@ -477,6 +483,10 @@ class Pathfind(object):
 			if self.benchmark:
 				self.real_time += max(rltime)
 				#print("t" + str(self.t) + "rlt=" + str(ttime), file=sys.stderr, end='')
+				
+			if self.timeout < time() - self.start_time and self.timeout != 0:
+				print("Timeout=" + str(time() - self.start_time))
+				sys.exit(0)
 
 			# perform all next actions
 			for robot in self.robots:
@@ -880,8 +890,28 @@ class Pathfind(object):
 							self.block_crossings(r1, r2)
 
 							# both find their nearest crossroad
+							if self.benchmark:
+								ts = time()
 							r1.find_crossroad()
+							if self.benchmark:
+								tf = time()
+								t = tf-ts
+								self.solve_times.append(t)
+								self.resolve_times.append(t)
+								print("Rst=%s," %(t), file=sys.stderr, end='')
+								print("R" + str(r2.id) + " at (" + str(r2.pos[0]) + "," + str(r2.pos[1]) + "),t=" + str(self.t) + ",", file=sys.stderr, end='')
+							
+
+							if self.benchmark:
+								ts = time()
 							r2.find_crossroad()
+							if self.benchmark:
+								tf = time()
+								t = tf-ts
+								self.solve_times.append(t)
+								self.resolve_times.append(t)
+								print("Rst=%s," %(t), file=sys.stderr, end='')
+								print("R" + str(r2.id) + " at (" + str(r2.pos[0]) + "," + str(r2.pos[1]) + "),t=" + str(self.t) + ",", file=sys.stderr, end='')
 							# choose who is closer to a crossroad
 							# or when one of the robots couldn't find a crossroad the other has to dodge
 							# when a robot couldn't find a crossroad its cross_length  will be -1
@@ -915,6 +945,11 @@ class Pathfind(object):
 							else:
 								self.add_wait(r2)
 
+								
+			if self.timeout < time() - self.start_time and self.timeout != 0:
+				print("Timeout after " + str(time() - self.start_time) + "s")
+				sys.exit(0)
+				
 			# then perform the actions
 			for robot in self.robots:
 				self.perform_action(robot)
@@ -933,14 +968,15 @@ if __name__ == "__main__":
 	parser.add_argument("-i", "--internal", help="disables use of external atoms", default=False, action="store_true")
 	parser.add_argument("-H", "--Highways", help="generate highway tuples if they are not given in the instance", default = False, action = "store_true")
 	parser.add_argument("-e", "--encoding", help="encoding to be used (default: ./pathfind.lp)", default = './pathfind.lp', type = str)
+	parser.add_argument("-t", "--timeout", help="time in seconds until the program stops and writes a timeout message", default = 0, type = int)
 	args = parser.parse_args()
 	benchmark = args.benchmark
-	verbose_out = sys.stderr if not benchmark else sys.stdout
+	verbose_out = sys.stdout
 
 	# Initialize the Pathfind object
 	if benchmark:
 		t1 = time()
-	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark, not args.internal, args.Highways)
+	pathfind = Pathfind(args.instance, args.encoding, not args.nomodel, args.verbose, verbose_out, benchmark, not args.internal, args.Highways, args.timeout)
 	if benchmark:
 		t2 = time()
 		initTime = t2-t1
