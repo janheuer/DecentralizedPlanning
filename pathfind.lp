@@ -1,16 +1,16 @@
-% Input: 
+% Input:
 % avaialable(N)    		- Shelf N is available
 % block(X, Y)          	- The node(X, Y) is currently blocked
 % start(X, Y, R)        - The robot R is on the node(X, Y) at timestep 0 => pos(X, Y, 0, R)
 % order(P, S, R, O)     - The order O for product P to the picking station S is to be performed by robot R
 % pickup(0, R)          - The robot R has already picked up the shelf in a previous attempt and is currently resolving
-% deliver(0, R)         - The robot R has already delivered the shelf to a station and is currently resolving
+% deliver(0, R, P, N)   - The robot R has already delivered the shelf to a station and is currently resolving
 
 % Output:
 % move(X, Y, T, R)     	- Robot R moves in the direction (X, Y) at timestep T
 % pos(X, Y, T, R)       - Robot R is on the node(X, Y) at timestep T
 % action(T, R)          - Robot R performs an action (pickup, deliver, putdown) at timestep T
-% putdown(T, R)			- Robot R puts the shelf he is carrying down on his position at timestep T 
+% putdown(T, R)			- Robot R puts the shelf he is carrying down on his position at timestep T
 % pickup(T, R)			- Robot R picks the shelf on his position up
 % deliver(T, R, P, N)	- Robot R delivers the product P from the shelf he is carrying to statisfy order N at timestep T
 % carries(T, R)			- Robot R carries a shelf at timestep T
@@ -47,8 +47,8 @@ node(X, Y) :- init(object(node, _), value(at, (X, Y))).
 highway(X, Y) :- init(object(highway,_),value(at,(X,Y))).
 
 % prevents the robot from getting stuck on a goal after resolving
-action(0, R) :- deliver(0, R, _, _). 
-action(0, R) :- pickup(0, R). 
+action(0, R) :- deliver(0, R, _, _).
+action(0, R) :- pickup(0, R).
 
 % Use the starting position of the robots as highway
 highway(X, Y) :- init(object(node, _), value(at, (X,Y))), init(object(robot,R),value(at,(X,Y))).
@@ -70,7 +70,7 @@ action(T, R) :- {pickup(T, R); deliver(T, R, _, _); putdown(T, R)} = 1, time(T),
 
 :- pos(X, Y, 1, _), block(X, Y). % movement on blocked node only forbidden for t=1
 :- pos(X, Y, _, _), not node(X, Y).
-:- pos(X, Y, T, R), shelf(X, Y, _), not goal(X, Y, 1, R), time(T). % zu t=0 darf roboter auf feld mit shelf stehen
+:- pos(X, Y, T, R), shelf(X, Y, _), not goal(X, Y, 1, R), time(T). % at t=0 robots are allowed to be on nodes with a shelf
 :- pos(X, Y, _, R), station(X, Y, N), not goal(X, Y, 2, R).
 :- move(X, Y, T, R), move(-X, -Y, T-1, R), time(T).
 :- pos(X, Y, T, R1), pos(X, Y, T, R2), R1 != R2.
@@ -91,12 +91,10 @@ deliver(T, R, P, N) :- pos(X, Y, T-1, R), goal(X, Y, 2, R), pickup(T2, R), T > T
 putdown(T, R) :- pos(X, Y, T-1, R), goal(X, Y, 3, R), deliver(T2, R, _, _), T > T2, carries(T-1, R).
 :- not putdown(_, R), robot(R).
 
-#minimize{1,T : move(X, Y, T, R)}. 
+#minimize{1,T : move(X, Y, T, R)}.
 
 
-%#minimize{|X1+X2|+|Y1+Y2| : chooseShelf(X1, Y1, N, R), station(X2, Y2, S), order(P, S, R, _)}.   
 
-%chooseShelf(N, R, X, Y) :- chooseShelf(N, R), shelf(X, Y, N).
 {chooseShelf(N, R) : available(N), product(P, N)}=1 :- order(P, _, R, _), robot(R).
 :- robot(R), not chooseShelf(_, R).
 % The goals are the points the robot has to visit: the chosen shelf, the picking station and then a place to put the shelf back down
