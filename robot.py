@@ -1,9 +1,11 @@
-from __future__ import print_function # only needed for debugging
-import sys # only needed for debugging
 import clingo
 
 class Robot(object):
 	def __init__(self, id, start, encoding, instance, external, highways):
+		"""Initialize the robot:
+		Data structure to save inputs
+		Clingo object"""
+		# inputs
 		self.id = id
 		self.start = list(start)
 		self.pos = list(start)
@@ -13,18 +15,20 @@ class Robot(object):
 		self.state = [] # State of the world around the robot as 2D Matrix
 		self.t=-1
 
-		self.order = [-1,-1,-1] 
+		self.order = [-1,-1,-1]
 		self.available_shelves = []
 		self.shelf = -1
 
 		self.pickupdone = False
 		self.deliverdone = False
 
+		# solving parameters
 		self.encoding = encoding
 		self.instance = instance
 		self.external = external
 		self.highways = highways
 
+		# when internal is used clingo object initialized before solve
 		if self.external:
 			self.prg = clingo.Control()
 			self.prg.load(encoding)
@@ -46,8 +50,8 @@ class Robot(object):
 
 		self.crossing_strategy = False
 
-	""" Alternative init if for the crossing strategy"""
 	def init_crossing(self):
+		"""Additional initialization for crossing strategy"""
 		self.crossing_strategy = True
 
 		self.using_crossroad = False
@@ -68,8 +72,9 @@ class Robot(object):
 			self.crossroad.load(self.instance)
 			self.crossroad.ground([("base", []), ("external", [])])
 
-	"""Makes the robot solve for a new plan. If you dont want to compare the old and new plan use solve() instead"""
 	def find_new_plan(self):
+		"""Makes the robot solve for a new plan and keeps the old plan saved
+		If you dont want to compare the old and new plan use solve() instead"""
 		self.old_model = list(self.model)
 		self.old_plan_length = self.plan_length
 
@@ -126,7 +131,7 @@ class Robot(object):
 		self.start = list(self.pos)
 		self.plan_finished = False
 
-		
+
 		# Solving; Due to the #minimize{}. the last model we find will be optimal
 		found_model = False
 		with self.prg.solve(yield_=True) as h:
@@ -144,7 +149,7 @@ class Robot(object):
 		if not found_model:
 			self.plan_length = -1
 			self.next_action = clingo.Function("", [])
-			if self.shelf == -1: 
+			if self.shelf == -1:
 				if self.external:
 					self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
 					for shelf in self.available_shelves:
@@ -153,8 +158,10 @@ class Robot(object):
 
 		return found_model
 
-	"""Only for replanning; The new plan was not satisfactory and the old one is to be used"""
 	def use_old_plan(self):
+		"""Continue using the old plan
+		Used when new plan of other robot in conflict better
+		or there is a deadlock with the new plan"""
 		self.model = list(self.old_model)
 		self.plan_length = self.old_plan_length
 
@@ -162,22 +169,25 @@ class Robot(object):
 		self.get_next_action()
 		self.t += 1
 
-
 	def use_new_plan(self):
+		"""Start using the new plan"""
 		self.t = 0
 		self.get_next_action()
 		self.t = 1
 
 	def solve(self):
+		"""Finds a new plan and immideatiely uses it (unless there is a deadlock)"""
 		found_model = self.find_new_plan()
 		if found_model:
 			self.use_new_plan()
 		return found_model
 
 	def block_crossings(self, crossings):
+		"""Save the blocked crossing which will be used as input in the next find_crossroad call"""
 		self.blocked_crossings = list(crossings)
 
 	def update_partners(self, partner, t_conflict):
+		"""Add new partner or update already existing partner"""
 		# update conflict_partners dict
 		# key: robot object (the conflict partner)
 		# value: how long is the robot conflict partner (as timestep)
@@ -186,6 +196,8 @@ class Robot(object):
 		self.conflict_partners[partner] += t_conflict
 
 	def find_crossroad(self):
+		"""Find the nearest crossroad
+		Similar to solve but with crossroad encoding"""
 		if self.external:
 			self.crossroad.assign_external(clingo.Function("start", [self.pos[0],self.pos[1],1]), True)
 			for cross in self.blocked_crossings:
@@ -224,12 +236,16 @@ class Robot(object):
 				self.crossroad.assign_external(clingo.Function("block", [cross[0],cross[1]]), False)
 
 	def set_in_conflict(self, t_conflict):
+		"""Set in_conflict flag and update cross_done"""
 		self.in_conflict = True
 		if self.cross_done == -1:
 			self.cross_done = self.t-1
 		self.cross_done += t_conflict+1
 
 	def use_crossroad(self):
+		"""Start using the crossroad model
+		First the returning part has to be generated
+		and then both parts have to be added to the normal model"""
 		if self.cross_model == []:
 			return
 
@@ -288,11 +304,13 @@ class Robot(object):
 		self.t += 1
 
 	def duplicate_last_move(self):
+		"""Duplicate the last move of the dodging (used in nested conflicts)"""
 		last_move = self.cross_model[self.cross_length-1]
 		self.cross_model.append(clingo.Function(last_move.name, [last_move.arguments[0].number, last_move.arguments[1].number, last_move.arguments[2].number+1, last_move.arguments[3].number]))
 		self.cross_length += 1
 
 	def reset_crossing(self):
+		"""Reinitialize all crossing related variables"""
 		self.cross_model = []
 		self.replanned = True
 		# set in_conflict flag to False and remove all conflict_partners
@@ -305,6 +323,7 @@ class Robot(object):
 		return old_partners
 
 	def get_next_action(self):
+		"""Update the next_action variable"""
 		next_action = False
 		for atom in self.model:
 			if atom.name == "move" and atom.arguments[2].number == self.t+1:
@@ -322,6 +341,8 @@ class Robot(object):
 			self.next_action = clingo.Function("", [])
 
 	def action(self):
+		"""Make the current action
+		Update state variables (and externals)"""
 		# special stuff for when crossing strategy is used
 		if self.crossing_strategy:
 			if self.cross_done == self.t:
@@ -369,11 +390,13 @@ class Robot(object):
 				return "wait",[]
 
 	def wait(self):
+		"""Make a wait action in the next action"""
 		self.waiting = True
 		self.next_action = clingo.Function("wait", [])
 		self.next_pos = list(self.pos)
 
 	def set_order(self, order, available_shelves):
+		"""Set order to be used as the next input in solving"""
 		self.shelf = -1
 
 		self.order = list(order)
@@ -384,6 +407,7 @@ class Robot(object):
 				self.prg.assign_external(clingo.Function("available", [shelf]), True)
 
 	def release_order(self):
+		"""Deactivate external for current order"""
 		if self.external:
 			self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
 			for shelf in self.available_shelves:
@@ -391,12 +415,16 @@ class Robot(object):
 		self.shelf = -1
 
 	def clear_state(self):
+		"""Reset the state matrix"""
 		# mark all positions as free
 		for i in range(len(self.state)):
 			for j in range(len(self.state[0])):
 				self.state[i][j] = 1
 
 	def update_state(self, state):
+		"""Update the state matrix
+		Robot can only look onto the positions it can move onto
+		All other positions are assumed to be free"""
 		if self.state == []:
 			for i in range(len(state)):
 				self.state.append([])
@@ -413,6 +441,7 @@ class Robot(object):
 					self.state[i][j] = 1
 
 	def action_possible(self):
+		"""Determine if next action is possible"""
 		# 1 = position is free
 		# 0 = position is blocked
 		if self.plan_finished:
