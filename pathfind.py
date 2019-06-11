@@ -2,7 +2,6 @@
 
 from __future__ import print_function
 import clingo
-import printer
 import robot
 from time import time
 import argparse
@@ -14,6 +13,7 @@ class Pathfind(object):
 		Instance is saved in data structures by helper function parse_instance
 		(also generates the Robot objects)
 		"""
+		# input parameters
 		self.instance = instance
 		self.encoding = encoding
 		self.model_output = model_output
@@ -22,9 +22,12 @@ class Pathfind(object):
 		self.benchmark = benchmark
 		self.external = external
 		self.highwaysFlag = highways
-		self.start_time = time()
 		self.timeout = timeout
-		
+
+		# take time for checking if timeout
+		self.start_time = time()
+
+		# reading instance (done by loading the encoding into a clingo object)
 		self.prg = clingo.Control()
 		self.prg.load(instance)
 		if self.benchmark:
@@ -41,30 +44,25 @@ class Pathfind(object):
 			print("PGt=%s," %(t), file=sys.stderr, end='') # Parsing Ground time
 		if self.benchmark:
 			ts = time()
-		# reads instance and saves it in the datastructures
+		# save instance in respective data structures
 		self.parse_instance()
 		if self.benchmark:
 			tf = time()
 			t = tf-ts
 			print("Pt=%s," %(t), file=sys.stderr, end='') # Parse time
 
+		# more initializing
 		self.orders_in_delivery = []
 		self.used_shelves = []
 		self.t = 0
-		# initialize output
-		if self.model_output:
-			self.sim = printer.Printer()
-			self.sim.add_inits(self.get_inits())
+
+		# output of inits
+		self.print_inits(self.get_inits())
+
 		# initialize robots
 		for robot in self.robots:
 			robot.update_state(self.state)
 			self.plan(robot) # assigns an order and plans it
-
-	"""helper functions"""
-
-	def print_verbose(self, arg):
-		if self.verbose:
-			print(arg, file=verbose_out)
 
 	def parse_instance(self):
 		"""Reads self.instance and saves all information in the according data structures
@@ -155,8 +153,31 @@ class Pathfind(object):
 		for r in self.robots:
 			self.state[r.pos[0]-1][r.pos[1]-1] = 0
 
+	"""output functions"""
+
+	def print_verbose(self, arg):
+		if self.verbose:
+			print(arg, file=verbose_out)
+
+	def print_inits(self, inits):
+		if self.model_output:
+			for atom in inits:
+				print(atom + ".")
+
+	def print_action(self, rid, name, args, t):
+		if self.model_output:
+			# for wait no atom is printed
+			if name != "wait":
+				txt = "occurs(object(robot,"+str(rid)+"),action("+name+",("
+				if name == "move":
+					txt += str(args[0])+","+str(args[1])
+				elif name == "deliver":
+					txt += str(args[0])+","+str(args[1])
+				txt += ")),"+str(t)+")."
+				print(txt)
+
 	def get_inits(self):
-		"""All inits are added to inits as a string according to asprillo specifications"""
+		"""Format and add all inits to list 'inits' as a string according to asprilo specifications"""
 		inits = []
 		for node in self.nodes:
 			inits.append("init(object(node,"+str(node[0])+"),value(at,("+str(node[1])+","+str(node[2])+")))")
@@ -181,19 +202,21 @@ class Pathfind(object):
 			inits.append("init(object(product,"+str(product[0])+"),value(on,("+str(product[1])+",1)))")
 		return inits
 
+	"""general helper functions"""
+
 	def perform_action(self, robot):
 		"""Performs the action of robot
-		If the order is finished with this action, a new order is planned
+		If the order is finished with this action, a new order is (assigned and) planned
 		"""
 		name, args = robot.action()
 		if name == "":
 			# robot doesn't have to do a action in this timestep because
 			# 1) there aren't any more orders
 			# 2) in the last timestep no order could be assigned
-			# 3) robot was in a deadlock in the last timestep
+			# 3) robot is in a deadlock
 			self.plan(robot)
-		elif self.model_output:
-			self.sim.add(robot.id, name, args, self.t)
+		else:
+			self.print_action(robot.id, name, args, self.t)
 		if name == "putdown":
 			# order is finished
 			self.finish_order(robot.order, robot.shelf)
@@ -242,7 +265,7 @@ class Pathfind(object):
 
 	def release_order(self, order):
 		"""Removes the order from list of orders which are currently being delivered
-		and adds it to the list of order which are open
+		and adds it again to the list of order which are open
 		This funtion is needed for situations in which the robot is deadlocked
 		in his start position and can't start the delivery of the order
 		"""
@@ -268,12 +291,10 @@ class Pathfind(object):
 			resolve = False
 			if not self.assign_order(robot): # try to assign a order
 				return False # no order can be assigned
-			if self.verbose:
-				print("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t), file=verbose_out)
+			self.print_verbose("robot"+str(robot.id)+" planning order id="+str(robot.order[0])+" product="+str(robot.order[1])+" station="+str(robot.order[2])+" at t="+str(self.t))
 		else:
 			resolve = True
-			if self.verbose:
-				print("robot"+str(robot.id)+" replanning at t="+str(self.t), file=verbose_out)
+			self.print_verbose("robot"+str(robot.id)+" replanning at t="+str(self.t))
 
 		if self.benchmark:
 			ts = time()
@@ -321,7 +342,7 @@ class Pathfind(object):
 				self.state[robot.pos[0]-1][robot.pos[1]-1] = 1 # mark old position as free
 				self.perform_action(robot)
 				self.state[robot.pos[0]-1][robot.pos[1]-1] = 0 # mark new position as blocked
-				
+
 		if self.benchmark:
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
@@ -363,6 +384,7 @@ class Pathfind(object):
 		self.state[robot.next_pos[0]-1][robot.next_pos[1]-1] = 0
 
 	def add_wait(self, r):
+		"""Add a wait action to the robots plan"""
 		self.print_verbose("r"+str(r.id)+" waits")
 		r.wait()
 		if r not in self.to_check:
@@ -454,7 +476,6 @@ class Pathfind(object):
 								self.change_plan(r1)
 								self.change_plan(r2)
 
-
 							# case 2: r1 is deadlocked or the new plan of r1 adds more time
 							elif (dr1 == -1) or (dr2 <= dr1 and dr2!=-1): # here dr2 can still be -1 -> then dr2<=dr1 would be true therefore the condition dr2!=-1 is needed
 								self.print_verbose("r"+str(r1.id)+" deadlocked or dr"+str(r2.id)+"<=dr"+str(r1.id))
@@ -483,7 +504,7 @@ class Pathfind(object):
 			if self.benchmark:
 				self.real_time += max(rltime)
 				#print("t" + str(self.t) + "rlt=" + str(ttime), file=sys.stderr, end='')
-				
+
 			if self.timeout < time() - self.start_time and self.timeout != 0:
 				print("Timeout=" + str(time() - self.start_time))
 				sys.exit(0)
@@ -499,6 +520,10 @@ class Pathfind(object):
 	"""main function for the crossing strategy and all helper functions"""
 
 	def add_crossroad(self, r1, r2):
+		"""Add crossroad to plan of r1 to dodge r2
+		First get in which direction to dodge
+		Possibly add this to conflict partners of r1
+		Change r1 (and partners) to use the crossroad"""
 		self.print_verbose("r"+str(r1.id)+" dodges")
 
 		# determine in which direction to dodge
@@ -549,7 +574,7 @@ class Pathfind(object):
 		self.change_crossroad(r1)
 
 	def get_dodge(self, r1, r2):
-		"""determines in which direction r1 has to dodge
+		"""determines in which direction r1 has to dodge and add the needed move to the cross_model
 		also handels the special case that r1 doesn't actually have to dodge all the way"""
 		t_finished = None # save time when r2 changes from path to crossing, r1 only has to dodge that long
 		# r1.cross_model contains all possible moves off the crossing
@@ -626,6 +651,9 @@ class Pathfind(object):
 		r1.cross_length = len(r1.cross_model)
 
 	def add_nested_crossroad(self, r1, r2):
+		"""Add crossroad in case of a nested conflict
+		changed saves all partners that have to do a nested dodge
+		for all changed conflict partners are update and crossroad is used"""
 		changed = self.get_nested_dodge1(r1, r2, None, [])
 
 		if changed != []:
@@ -636,11 +664,11 @@ class Pathfind(object):
 				self.change_crossroad(p)
 
 	def get_nested_dodge1(self, r1, r2, steps_to_do, changed):
-		"""helper function for add_nested_crossroad"""
-		# same functionality as add_nested_dodge1 but for a more general case
-		# in add_nested_dodge1 r2 has to actually start with the cross_model
-		# here r2 can already have made some moves from the cross_model
-		self.print_verbose("r"+str(r1.id)+" recursively dodges12")
+		"""helper function for add_nested_crossroad
+		dodging robot (r2) moves onto one of its partners (r1)
+		partner (r1) has to dodge the same way as r2
+		but without the first step and duplicating the last step"""
+		self.print_verbose("r"+str(r1.id)+" recursively dodges")
 		r1.cross_model = []
 		# how many steps does r2 still have to do from its cross_model
 		if steps_to_do is None:
@@ -692,7 +720,11 @@ class Pathfind(object):
 		return changed
 
 	def get_nested_dodge2(self, r1, r2, prev, changed):
-		"""helper function for add_crossroad"""
+		"""helper function for add_crossroad
+		dodging robot (r2) doesn't move onto any of its partner
+		the partner next to r2 is r1
+		r1 has to do the same dodge
+		r2 gets an additional last step (duplicate previous last step)"""
 		self.print_verbose("r"+str(r1.id)+" recursively dodges2")
 		# r1 will copy the cross_model of r2
 		# but a new first move is added (so all other moves have to be moved one timestep back)
@@ -721,6 +753,7 @@ class Pathfind(object):
 		return changed
 
 	def update_conflict_partners(self, r1, r2):
+		"""Update the conflict partners of r1 and r2 (and do so recursively for their partners)"""
 		# if r2 previously not in conflict, in_conflict flag needs to be set
 		if not r2.in_conflict:
 			r2.set_in_conflict(r1.cross_length)
@@ -762,6 +795,8 @@ class Pathfind(object):
 		return r1_old_partners
 
 	def change_crossroad(self, r):
+		"""Make the robot use the crossroad
+		Update position, robot has to be checked for possible new conflitcs"""
 		# add the crossroad to the model, also generates the returning
 		r.use_crossroad()
 		if r not in self.to_check:
@@ -769,6 +804,7 @@ class Pathfind(object):
 		self.state[r.next_pos[0]-1][r.next_pos[1]-1] = 0
 
 	def block_crossings(self, r1, r2):
+		"""In certain cases the positions of r1 and r2 can't be used as crossings"""
 		blocked = []
 		if r1.in_conflict or r1.replanned:
 			blocked.append(list(r1.pos))
@@ -829,6 +865,12 @@ class Pathfind(object):
 		return possible
 
 	def run_crossing(self):
+		"""Run function using the crossing strategy
+		In case of a conflict both robots look for their nearest crossing
+		(a crossing is a highway connected to three other highways)
+		The robot closest to a crossing dodges the other robot using the crossing
+		This method is only used for swapping conflict, all other conflicts
+		are solved by making one of the robots wait"""
 		# for the crossing strategy the crossroad encoding has to be loaded
 		# also some variables have to initialised
 		for r in self.robots:
@@ -900,7 +942,6 @@ class Pathfind(object):
 								self.resolve_times.append(t)
 								print("Rst=%s," %(t), file=sys.stderr, end='')
 								print("R" + str(r2.id) + " at (" + str(r2.pos[0]) + "," + str(r2.pos[1]) + "),t=" + str(self.t) + ",", file=sys.stderr, end='')
-							
 
 							if self.benchmark:
 								ts = time()
@@ -945,11 +986,10 @@ class Pathfind(object):
 							else:
 								self.add_wait(r2)
 
-								
 			if self.timeout < time() - self.start_time and self.timeout != 0:
 				print("Timeout after " + str(time() - self.start_time) + "s")
 				sys.exit(0)
-				
+
 			# then perform the actions
 			for robot in self.robots:
 				self.perform_action(robot)
@@ -959,7 +999,8 @@ class Pathfind(object):
 			print("Tpl="+str(self.t)+",", file=sys.stderr, end='') # Total plan length
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser()
+	# command line arguments
+	parser = argparse.ArgumentParser(description = "A program for decentralized planning in the asprilo framework", usage='%(prog)s [options] instance')
 	parser.add_argument("instance", help="the instance to be loaded")
 	parser.add_argument("-n", "--nomodel", help="disables output of the model", default=False, action="store_true")
 	parser.add_argument("-v", "--verbose", help="outputs additional information (printed to stderr)", default=False, action="store_true")
@@ -971,7 +1012,7 @@ if __name__ == "__main__":
 	parser.add_argument("-t", "--timeout", help="time in seconds until the program stops and writes a timeout message", default = 0, type = int)
 	args = parser.parse_args()
 	benchmark = args.benchmark
-	verbose_out = sys.stdout
+	verbose_out = sys.stderr if not benchmark else sys.stdout
 
 	# Initialize the Pathfind object
 	if benchmark:
