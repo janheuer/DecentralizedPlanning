@@ -219,13 +219,13 @@ class PathfindDecentralized(Pathfind):
         Instance is saved in data structures by helper function parse_instance
         (also generates the Robot objects)
         """
-        super().__init__(instance, encoding, benchmark, model_output)
-        # input parameters
+        # input parameters (needed in init)
         self.verbose: bool = verbose
         self.verbose_out: TextIO = verbose_out
         self.external: bool = external
         self.highwaysFlag: bool = highways
         self.timeout: int = timeout
+        super().__init__(instance, encoding, benchmark, model_output)
 
         # take time for checking if timeout
         self.start_time: float = time()
@@ -456,7 +456,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
                     rltime[r.id - 1] = 0
                 # no order assigned or no plan because in a deadlock
                 if (r.shelf == -1) or (r.next_action.name == ""):
-                    robot.update_state(self.state)
+                    r.update_state(self.state)
                     self.plan(r)
 
             # unmark all old positions
