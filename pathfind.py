@@ -148,9 +148,6 @@ class Pathfind(object):
                 txt += "))," + str(t) + ")."
                 print(txt)
 
-    def assign_order(self, robot: Robot) -> None:
-        pass
-
     def run(self) -> None:
         pass
 
@@ -159,11 +156,15 @@ class PathfindCentralized(Pathfind):
     def __init__(self, instance: str, encoding: str, benchmark: bool, model_output: bool) -> None:
         super().__init__(instance, encoding, benchmark, model_output)
 
-        for robot in self.robots:
-            self.assign_order(robot)
+        self.assign_orders()
 
-    def assign_order(self, robot: Robot) -> None:
-        pass
+    def assign_orders(self) -> None:
+        for r in self.robots:
+            self.prg.add("base", [], "order("+str(self.orders[0][1])+", "+str(self.orders[0][2])+", "+str(r)+", "+str(self.orders[0][0])+").")
+            del self.orders[0]
+
+    def init_robot(self, id: int, x: int, y: int) -> None:
+        self.robots.append(id)
 
     def run(self):
         self.t = 0
