@@ -401,6 +401,12 @@ class PathfindDecentralized(Pathfind):
                 self.release_order(robot.order)
             return False
 
+    def add_wait(self, r):
+        """Add a wait action to the robots plan"""
+        self.print_verbose("r" + str(r.id) + " waits")
+        r.wait()
+        self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
+
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
     def run(self):
@@ -600,12 +606,9 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         self.state[robot.next_pos[0] - 1][robot.next_pos[1] - 1] = 0
 
     def add_wait(self, r):
-        """Add a wait action to the robots plan"""
-        self.print_verbose("r" + str(r.id) + " waits")
-        r.wait()
+        super().add_wait(r)
         if r not in self.to_check:
             self.to_check.append(r)
-        self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
 
 
 class PathfindDecentralizedCrossing(PathfindDecentralized):
@@ -1115,12 +1118,9 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         return possible
 
     def add_wait(self, r):
-        """Add a wait action to the robots plan"""
-        self.print_verbose("r" + str(r.id) + " waits")
-        r.wait()
+        super().add_wait(r)
         if r not in self.to_check:
             self.to_check.append(r)
-        self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
 
 
 if __name__ == "__main__":
