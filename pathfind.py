@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import List, TextIO, Type, Tuple
 import clingo
-from robot import Robot
+from robot import Robot, RobotSequential, RobotShortest, RobotCrossing
 from time import time
 import argparse
 import sys
@@ -248,16 +248,6 @@ class PathfindDecentralized(Pathfind):
         for robot in self.robots:
             self.plan(robot)  # assigns an order and plans it
 
-    def init_robot(self, id: int, x: int, y: int) -> None:
-        if self.benchmark:
-            ts: float = time()
-        self.robots.append(Robot(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag))
-        if self.benchmark:
-            tf: float = time()
-            t: float = tf - ts
-            self.ground_times.append(t)
-            print("Igt=%s," % t, file=sys.stderr, end='')  # Init Ground time
-
     def init_state(self) -> None:
         # initialize state matrix, saves which positions are free (1=free, 0=blocked)
         self.state = []
@@ -409,6 +399,16 @@ class PathfindDecentralized(Pathfind):
 
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
+    def init_robot(self, id: int, x: int, y: int) -> None:
+        if self.benchmark:
+            ts: float = time()
+        self.robots.append(RobotSequential(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag))
+        if self.benchmark:
+            tf: float = time()
+            t: float = tf - ts
+            self.ground_times.append(t)
+            print("Igt=%s," % t, file=sys.stderr, end='')  # Init Ground time
+
     def run(self):
         """Main function of Pathfind
         Starts execution of all plans and handles possible conflicts
@@ -435,6 +435,16 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
 
 
 class PathfindDecentralizedShortest(PathfindDecentralized):
+    def init_robot(self, id: int, x: int, y: int) -> None:
+        if self.benchmark:
+            ts: float = time()
+        self.robots.append(RobotShortest(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag))
+        if self.benchmark:
+            tf: float = time()
+            t: float = tf - ts
+            self.ground_times.append(t)
+            print("Igt=%s," % t, file=sys.stderr, end='')  # Init Ground time
+
     def run(self):
         """Run version using the shortest replanning conflict solving strategy
         In case of a conflict (where both robots move) both robots find a new plan
@@ -612,6 +622,16 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
 
 
 class PathfindDecentralizedCrossing(PathfindDecentralized):
+    def init_robot(self, id: int, x: int, y: int) -> None:
+        if self.benchmark:
+            ts: float = time()
+        self.robots.append(RobotCrossing(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag))
+        if self.benchmark:
+            tf: float = time()
+            t: float = tf - ts
+            self.ground_times.append(t)
+            print("Igt=%s," % t, file=sys.stderr, end='')  # Init Ground time
+
     def run(self):
         """Run function using the crossing strategy
         In case of a conflict both robots look for their nearest crossing
@@ -619,11 +639,6 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         The robot closest to a crossing dodges the other robot using the crossing
         This method is only used for swapping conflict, all other conflicts
         are solved by making one of the robots wait"""
-        # for the crossing strategy the crossroad encoding has to be loaded
-        # also some variables have to initialised
-        for r in self.robots:
-            r.init_crossing()
-
         # keep track of which robots we still have to check for conflicts
         self.to_check = []
 
