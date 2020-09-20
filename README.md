@@ -2,7 +2,7 @@
 
 This project implements a decentralized approach to planning in the [**asprilo**](<https://potassco.org/asprilo>) framework.
 
-The genral idea is that orders are assigned to the robots and each robot then plans its own order without taking into account the other robots.
+The general idea is that orders are assigned to the robots and each robot then plans its own order without taking into account the other robots.
 During the execution of the plans conflicts are solved according to one of the implemented strategies (sequential, shortest replanning, crossing).
 
 ## Structure
@@ -39,7 +39,7 @@ The output format follows the [**asprilo format**](<https://github.com/potassco/
 python pathfind.py instance
 ```
 
-Python (tested with version 2.7) and the python module of [**clingo**](<https://github.com/potassco/clingo>) are required.
+Python (tested with version 3.7) and the python module of [**clingo**](<https://github.com/potassco/clingo>) are required.
 The conflict solving strategy used, a custom planning encoding and different output options can be specified via command line options.
 
 To get a list of all options run:
