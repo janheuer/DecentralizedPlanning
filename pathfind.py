@@ -8,9 +8,8 @@ import sys
 
 
 class Pathfind(object):
-    def __init__(self, instance: str, encoding: str, domain: str, benchmark: bool, model_output: bool) -> None:
+    def __init__(self, instance: str, domain: str, benchmark: bool, model_output: bool) -> None:
         self.instance: str = instance
-        self.encoding: str = encoding
         self.domain: str = domain
         self.benchmark: bool = benchmark
         self.model_output: bool = model_output
@@ -154,18 +153,20 @@ class Pathfind(object):
 
 
 class PathfindCentralized(Pathfind):
-    def __init__(self, instance: str, encoding: str, domain: str, benchmark: bool, model_output: bool) -> None:
+    def __init__(self, instance: str, domain: str, benchmark: bool, model_output: bool) -> None:
         if domain == "m":
             print("domain m not yet supported for centralized strategy", file=sys.stderr)
             sys.exit(0)
 
-        super().__init__(instance, encoding, domain, benchmark, model_output)
+        super().__init__(instance, domain, benchmark, model_output)
+
+        self.encoding: str = "./encodings/pathfindCentralized.lp"
 
         self.assign_orders()
 
     def assign_orders(self) -> None:
         for r in self.robots:
-            self.prg.add("base", [], "order("+str(self.orders[0][1])+", "+str(self.orders[0][2])+", "+str(r)+", "+str(self.orders[0][0])+").")
+            self.prg.add("base", [], "order("+str(self.orders[0][1])+", "+str(self.orders[0][2])+", "+str(self.orders[0][0])+", "+str(r)+").")
             del self.orders[0]
 
     def init_robot(self, id: int, x: int, y: int) -> None:
@@ -177,7 +178,7 @@ class PathfindCentralized(Pathfind):
 
         if benchmark:
             ts: float = time()
-        self.prg.ground([("base", []), ("centralized", [])])
+        self.prg.ground([("base", [])])
         if benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -201,37 +202,38 @@ class PathfindCentralized(Pathfind):
             args = []
             if not self.benchmark:
                 if name == "move":
+                    args.append(atom.arguments[1].arguments[0])
+                    args.append(atom.arguments[1].arguments[1])
+                    self.print_action(atom.arguments[1], name, args, atom.arguments[2])
+                if name == "pickup" or name == "putdown":
+                    self.print_action(atom.arguments[0], name, args, atom.arguments[1])
+                if name == "deliver":
                     args.append(atom.arguments[0])
                     args.append(atom.arguments[1])
-                    self.print_action(atom.arguments[3], name, args, atom.arguments[2])
-                if name == "pickup" or name == "putdown":
-                    self.print_action(atom.arguments[1], name, args, atom.arguments[0])
-                if name == "deliver":
-                    args.append(atom.arguments[2])
-                    args.append(atom.arguments[3])
-                    self.print_action(atom.arguments[1], name, args, atom.arguments[0])
+                    self.print_action(atom.arguments[2], name, args, atom.arguments[3])
             if name == "putdown":
-                if self.t < atom.arguments[0].number:
-                    self.t = atom.arguments[0].number
+                if self.t < atom.arguments[1].number:
+                    self.t = atom.arguments[1].number
 
         if self.benchmark:
             print("Tpl=" + str(self.t) + ",", file=sys.stderr, end='')  # Total plan length
 
 
 class PathfindDecentralized(Pathfind):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+    def __init__(self, instance: str, domain: str, model_output: bool, verbose: bool, verbose_out: TextIO,
+                 benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
         """Assigns initial order to the robots and plans it
         Instance is saved in data structures by helper function parse_instance
         (also generates the Robot objects)
         """
         # input parameters (needed in init)
+        self.encoding: str = "./encodings/pathfindDecentralized.lp"
         self.verbose: bool = verbose
         self.verbose_out: TextIO = verbose_out
         self.external: bool = external
         self.highwaysFlag: bool = highways
         self.timeout: int = timeout
-        super().__init__(instance, encoding, domain, benchmark, model_output)
+        super().__init__(instance, domain, benchmark, model_output)
 
         # take time for checking if timeout
         self.start_time: float = time()
@@ -404,13 +406,12 @@ class PathfindDecentralized(Pathfind):
 
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+    def __init__(self, instance: str, domain: str, model_output: bool, verbose: bool, verbose_out: TextIO,
+                 benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
         if domain == "m":
             print("domain m not yet supported for sequential strategy", file=sys.stderr)
             sys.exit(0)
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
-                         timeout)
+        super().__init__(instance, domain, model_output, verbose, verbose_out, benchmark, external, highways, timeout)
 
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
@@ -448,13 +449,12 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
 
 
 class PathfindDecentralizedShortest(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+    def __init__(self, instance: str, domain: str, model_output: bool, verbose: bool, verbose_out: TextIO,
+                 benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
         if domain == "m":
             print("domain m not yet supported for shortest replanning strategy", file=sys.stderr)
             sys.exit(0)
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
-                         timeout)
+        super().__init__(instance, domain, model_output, verbose, verbose_out, benchmark, external, highways, timeout)
 
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
@@ -643,13 +643,13 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
 
 
 class PathfindDecentralizedCrossing(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+    # TODO: adjustments for new encoding ?
+    def __init__(self, instance: str, domain: str, model_output: bool, verbose: bool, verbose_out: TextIO,
+                 benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
         if domain == "m":
             print("domain m not yet supported for crossing strategy", file=sys.stderr)
             sys.exit(0)
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
-                         timeout)
+        super().__init__(instance, domain, model_output, verbose, verbose_out, benchmark, external, highways, timeout)
 
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
@@ -1183,8 +1183,6 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--internal", help="disables use of external atoms", default=False, action="store_true")
     parser.add_argument("-H", "--Highways", help="generate highway tuples if they are not given in the instance",
                         default=False, action="store_true")
-    parser.add_argument("-e", "--encoding", help="encoding to be used (default: ./pathfind.lp)",
-                        default='./pathfind.lp', type=str)
     parser.add_argument("-t", "--timeout", help="time in seconds until the program stops and writes a timeout message",
                         default=0, type=int)
     parser.add_argument("-d", "--domain", help="asprilo domain to be used (default: b)", type=str, default="b",
@@ -1197,17 +1195,17 @@ if __name__ == "__main__":
     if benchmark:
         t1 = time()
     if args.strategy == 'sequential':
-        pathfind = PathfindDecentralizedSequential(args.instance, args.encoding, args.domain, not args.nomodel,
-                                                   args.verbose, verbose_out, benchmark, not args.internal,
-                                                   args.Highways, args.timeout)
+        pathfind = PathfindDecentralizedSequential(args.instance, args.domain, not args.nomodel, args.verbose,
+                                                   verbose_out, benchmark, not args.internal, args.Highways,
+                                                   args.timeout)
     elif args.strategy == 'shortest':
-        pathfind = PathfindDecentralizedShortest(args.instance, args.encoding, args.domain, not args.nomodel,
-                                                 args.verbose, verbose_out, benchmark, not args.internal, args.Highways,
-                                                 args.timeout)
+        pathfind = PathfindDecentralizedShortest(args.instance, args.domain, not args.nomodel, args.verbose,
+                                                 verbose_out, benchmark, not args.internal, args.Highways, args.timeout)
     elif args.strategy == 'crossing':
-        pathfind = PathfindDecentralizedCrossing(args.instance, args.encoding, args.domain, not args.nomodel,
-                                                 args.verbose, verbose_out, benchmark, not args.internal, args.Highways,
-                                                 args.timeout)
+        print("crossing not yet updated for new encoding", file=sys.stderr)
+        sys.exit(0)
+        pathfind = PathfindDecentralizedCrossing(args.instance, args.domain, not args.nomodel, args.verbose,
+                                                 verbose_out, benchmark, not args.internal, args.Highways, args.timeout)
     elif args.strategy == 'centralized':
         # TODO create centralized pathfind object + modifications benchmark timing for centralized
         print("centralized strategy not yet supported", file=sys.stderr)

@@ -34,7 +34,7 @@ class Robot(object):
             self.prg = clingo.Control()
             self.prg.load(encoding)
             self.prg.load(instance)
-            parts = [("base", []), ("decentralized", [])]
+            parts = [("base", []), ("decentralized", [self.id])]
             if self.highways:
                 parts.append(("highways", []))
             self.prg.ground(parts)
@@ -57,11 +57,12 @@ class Robot(object):
 
         if self.external:
             # Assign externals before solving
-            self.prg.assign_external(clingo.Function("start", [self.start[0], self.start[1], 1]), False)
-            self.prg.assign_external(clingo.Function("start", [self.pos[0], self.pos[1], 1]), True)
+            self.prg.assign_external(clingo.Function("start", [(self.start[0], self.start[1]), self.id]), False)
+            self.prg.assign_external(clingo.Function("start", [(self.pos[0], self.pos[1]), self.id]), True)
 
-            self.prg.assign_external(clingo.Function("pickup", [0, 1]), self.pickupdone)
-            self.prg.assign_external(clingo.Function("deliver", [0, 1, self.order[1], self.order[0]]), self.deliverdone)
+            self.prg.assign_external(clingo.Function("pickup", [self.id, 0]), self.pickupdone)
+            self.prg.assign_external(clingo.Function("deliver", [self.order[1], self.order[0], self.id, 0]),
+                                     self.deliverdone)
 
             if self.shelf != -1:
                 for shelf in self.available_shelves:
@@ -70,7 +71,7 @@ class Robot(object):
 
             for i in range(len(self.state)):
                 for j in range(len(self.state[0])):
-                    self.prg.assign_external(clingo.Function("block", [i + 1, j + 1]), not self.state[i][j])
+                    self.prg.assign_external(clingo.Function("block", [(i + 1, j + 1)]), not self.state[i][j])
         else:  # if the flag -i is used
             # Add all externals directly as literals instead and then ground
             self.prg = clingo.Control()
@@ -78,25 +79,26 @@ class Robot(object):
             self.prg.load(self.instance)
             self.prg.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
             if self.pickupdone:
-                self.prg.add("base", [], "pickup(0, 1).")
+                self.prg.add("base", [], "pickup(" + str(self.id) + ",0).")
             if self.deliverdone:
-                self.prg.add("base", [], "deliver(0, 1, " + str(self.order[1]) + ", " + str(self.order[0]) + ").")
+                self.prg.add("base", [], "deliver(" + str(self.order[1]) + "," + str(self.order[0]) + "," + str(self.id)
+                             + ",0).")
 
-            self.prg.add("base", [], "block(-1, -1).")
+            self.prg.add("base", [], "block((-1,-1)).")
             for i in range(len(self.state)):
                 for j in range(len(self.state[0])):
                     if not (self.state[i][j]):
-                        self.prg.add("base", [], "block(" + str(i + 1) + ", " + str(j + 1) + ").")
+                        self.prg.add("base", [], "block((" + str(i + 1) + ", " + str(j + 1) + ")).")
             if self.shelf != -1:
                 self.prg.add("base", [], "available(" + str(self.shelf) + ").")
             else:
                 for shelf in self.available_shelves:
                     self.prg.add("base", [], "available(" + str(shelf) + ").")
 
-            self.prg.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + ", 1, " + str(
-                self.order[0]) + ").")
+            self.prg.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," + str(
+                self.order[0]) + "," + str(self.id) + ").")
 
-            parts = [("base", []), ("decentralizedNoExternals", []), ("start", [self.pos[0], self.pos[1]])]
+            parts = [("base", []), ("decentralizedNoExternals", [self.id]), ("start", [(self.pos[0], self.pos[1])])]
             if self.highways:
                 parts.append(("highways", []))
             self.prg.ground(parts)
@@ -116,15 +118,15 @@ class Robot(object):
                     if atom.name == "chooseShelf":
                         self.shelf = atom.arguments[0].number
                     if atom.name == "putdown":
-                        self.plan_length = atom.arguments[0].number
+                        self.plan_length = atom.arguments[1].number
 
         if not found_model:
             self.plan_length = -1
             self.next_action = clingo.Function("", [])
             if self.shelf == -1:
                 if self.external:
-                    self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]),
-                                             False)
+                    self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], self.order[0],
+                                                                       self.id]), False)
                     for shelf in self.available_shelves:
                         self.prg.assign_external(clingo.Function("available", [shelf]), False)
                 self.available_shelves = []
@@ -150,10 +152,11 @@ class Robot(object):
         for atom in self.model:
             if atom.name == "move" and atom.arguments[2].number == self.t + 1:
                 self.next_action = atom
-                self.next_pos[0] = self.pos[0] + atom.arguments[0].number
-                self.next_pos[1] = self.pos[1] + atom.arguments[1].number
+                self.next_pos[0] = self.pos[0] + atom.arguments[0].arguments[0].number
+                self.next_pos[1] = self.pos[1] + atom.arguments[0].arguments[1].number
                 next_action = True
-            elif atom.name in ["pickup", "deliver", "putdown"] and atom.arguments[0].number == self.t + 1:
+            elif (atom.name in ["pickup", "putdown"] and atom.arguments[1].number == self.t + 1) or (
+                    atom.name == "deliver" and atom.arguments[3].number == self.t + 1):
                 self.next_action = atom
                 next_action = True
         if not next_action:
@@ -176,17 +179,17 @@ class Robot(object):
                     self.pickupdone = False
                     self.deliverdone = False
                     if self.external:
-                        self.prg.assign_external(clingo.Function("deliver", [0, 1, self.order[1], self.order[0]]),
+                        self.prg.assign_external(clingo.Function("deliver", [self.order[1], self.order[0], self.id, 0]),
                                                  self.deliverdone)
                 else:
                     if name == "move":
                         self.pos = list(self.next_pos)
-                        args = [action.arguments[0].number, action.arguments[1].number]
+                        args = [action.arguments[0].arguments[0].number, action.arguments[0].arguments[1].number]
                     elif name == "pickup":
                         self.pickupdone = True
                     elif name == "deliver":
                         self.deliverdone = True
-                        args = [self.order[0], self.order[1], 1]
+                        args = [self.order[0], self.order[1]]
                 self.get_next_action()
                 self.t += 1
                 return name, args
@@ -211,14 +214,16 @@ class Robot(object):
         self.order = list(order)
         self.available_shelves = list(available_shelves)
         if self.external:
-            self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), True)
+            self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], self.order[0], self.id]),
+                                     True)
             for shelf in self.available_shelves:
                 self.prg.assign_external(clingo.Function("available", [shelf]), True)
 
     def release_order(self):
         """Deactivate external for current order"""
         if self.external:
-            self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], 1, self.order[0]]), False)
+            self.prg.assign_external(clingo.Function("order", [self.order[1], self.order[2], self.order[0], self.id]),
+                                     False)
             for shelf in self.available_shelves:
                 self.prg.assign_external(clingo.Function("available", [shelf]), False)
         self.shelf = -1
@@ -274,6 +279,7 @@ class RobotShortest(Robot):
 
 
 class RobotCrossing(Robot):
+    # TODO: adjustments for new encoding ?
     def __init__(self, id, start, encoding, instance, external, highways):
         super().__init__(id, start, encoding, instance, external, highways)
 
