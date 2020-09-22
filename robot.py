@@ -1,4 +1,3 @@
-import sys
 import clingo
 
 
@@ -529,8 +528,6 @@ class RobotPrioritized(Robot):
                     if atom.name == "putdown":
                         self.plan_length = atom.arguments[1].number
 
-        print(self.model, file=sys.stderr)
-
         if not found_model:
             self.plan_length = -1
             self.next_action = clingo.Function("", [])
@@ -564,7 +561,6 @@ class RobotPrioritized(Robot):
         self.additional_inputs = []
 
     def block_pos(self, pos):
-        print("blocking position: " + str(pos), file=sys.stderr)
         self.blocked_positions.append(pos)
 
     def clear_blocked_positions(self):

@@ -1189,12 +1189,8 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
 
     def plan(self, robot: RobotPrioritized):
         # collect plans from all other robots
-        #print("collecting plans for robot "+str(robot.id)+" at t="+str(self.t), file=sys.stderr)
-        #print("the following robots already performed actions: "+str(self.performed_action), file=sys.stderr)
         for r in self.robots:
             if robot != r:
-                #print("plan of robot "+str(r.id), file=sys.stderr)
-                #print(r.get_plan(1 if (r.id not in self.performed_action and self.t > 0) else 0), file=sys.stderr)
                 plan = r.get_plan(1 if (r.id not in self.performed_action and self.t > 0) else 0)
                 if plan:
                     robot.add_plan(plan)
