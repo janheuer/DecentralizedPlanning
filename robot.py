@@ -484,6 +484,7 @@ class RobotPrioritized(Robot):
         super().__init__(id, start, encoding, instance, external, highways)
 
         self.additional_inputs = []
+        self.blocked_positions = []
 
     def solve(self):
         # similar to Robot.solve() / Robot.find_new_plan()
@@ -502,6 +503,9 @@ class RobotPrioritized(Robot):
 
         for atom in self.additional_inputs:
             self.prg.add("base", [], atom)
+
+        for pos in self.blocked_positions:
+            self.prg.add("base", [], "blockAll(" + str(pos) + ").")
 
         parts = [("base", []), ("decentralizedNoExternals", [self.id])]
         if self.highways:
@@ -525,7 +529,7 @@ class RobotPrioritized(Robot):
                     if atom.name == "putdown":
                         self.plan_length = atom.arguments[1].number
 
-        #print(self.model, file=sys.stderr)
+        print(self.model, file=sys.stderr)
 
         if not found_model:
             self.plan_length = -1
@@ -558,3 +562,10 @@ class RobotPrioritized(Robot):
 
     def clear_additional_input(self):
         self.additional_inputs = []
+
+    def block_pos(self, pos):
+        print("blocking position: " + str(pos), file=sys.stderr)
+        self.blocked_positions.append(pos)
+
+    def clear_blocked_positions(self):
+        self.blocked_positions = []

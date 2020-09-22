@@ -1195,11 +1195,16 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
             if robot != r:
                 #print("plan of robot "+str(r.id), file=sys.stderr)
                 #print(r.get_plan(1 if (r.id not in self.performed_action and self.t > 0) else 0), file=sys.stderr)
-                robot.add_plan(r.get_plan(1 if (r.id not in self.performed_action and self.t > 0) else 0))
+                plan = r.get_plan(1 if (r.id not in self.performed_action and self.t > 0) else 0)
+                if plan:
+                    robot.add_plan(plan)
+                else:
+                    robot.block_pos((r.pos[0], r.pos[1]))
 
         super().plan(robot)
 
         robot.clear_additional_input()
+        robot.clear_blocked_positions()
 
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
