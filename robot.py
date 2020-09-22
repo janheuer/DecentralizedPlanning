@@ -77,7 +77,7 @@ class Robot(object):
             self.prg = clingo.Control()
             self.prg.load(self.encoding)
             self.prg.load(self.instance)
-            self.prg.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
+            self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
             if self.pickupdone:
                 self.prg.add("base", [], "pickup(" + str(self.id) + ",0).")
             if self.deliverdone:
@@ -98,7 +98,7 @@ class Robot(object):
             self.prg.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," + str(
                 self.order[0]) + "," + str(self.id) + ").")
 
-            parts = [("base", []), ("decentralizedNoExternals", [self.id]), ("start", [(self.pos[0], self.pos[1])])]
+            parts = [("base", []), ("decentralizedNoExternals", [self.id])]
             if self.highways:
                 parts.append(("highways", []))
             self.prg.ground(parts)
@@ -476,3 +476,76 @@ class RobotCrossing(Robot):
         for i in range(len(self.state)):
             for j in range(len(self.state[0])):
                 self.state[i][j] = 1
+
+
+class RobotPrioritized(Robot):
+    def __init__(self, id, start, encoding, instance, external, highways):
+        super().__init__(id, start, encoding, instance, external, highways)
+
+        self.additional_inputs = []
+
+    def solve(self):
+        # similar to Robot.solve() / Robot.find_new_plan()
+        # but needs to add the additional input to the program
+        # and clear additional inputs after solving
+        self.prg = clingo.Control()
+        self.prg.load(self.encoding)
+        self.prg.load(self.instance)
+        self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
+
+        for shelf in self.available_shelves:
+            self.prg.add("base", [], "available(" + str(shelf) + ").")
+
+        self.prg.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," + str(self.order[0]) +
+                     "," + str(self.id) + ").")
+
+        for atom in self.additional_inputs:
+            self.prg.add("base", [], atom)
+
+        parts = [("base", []), ("decentralizedNoExternals", [self.id])]
+        if self.highways:
+            parts.append(("highways", []))
+        self.prg.ground(parts)
+
+        self.start = list(self.pos)
+        self.plan_finished = False
+
+        # Solving; Due to the #minimize{}. the last model we find will be optimal
+        found_model = False
+        with self.prg.solve(yield_=True) as h:
+            for m in h:
+                found_model = True
+                opt = m
+            if found_model:
+                for atom in opt.symbols(shown=True):
+                    self.model.append(atom)
+                    if atom.name == "chooseShelf":
+                        self.shelf = atom.arguments[0].number
+                    if atom.name == "putdown":
+                        self.plan_length = atom.arguments[1].number
+
+        if not found_model:
+            self.plan_length = -1
+            self.next_action = clingo.Function("", [])
+            self.available_shelves = []
+        else:
+            self.t = 0
+            self.get_next_action()
+            self.t = 1
+
+        return found_model
+
+    def get_plan(self):
+        # returns all pos and move atoms from current timestep on
+        # and maps the timesteps of these atoms
+        # i.e. such that the next action is t=1 and so on
+        plan = []
+        for atom in self.model:
+            if (atom.name == "pos" or atom.name == "move") and (atom.arguments[2].number >= self.t):
+                plan.append(atom.name + "((" + str(atom.arguments[0].arguments[0]) + "," +
+                            str(atom.arguments[0].arguments[1]) + ")," + str(atom.arguments[1].number) + "," +
+                            str(atom.arguments[2].number - self.t + 1) + ").")
+        return plan
+
+    def add_plan(self, plan):
+        self.additional_inputs += plan
