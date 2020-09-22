@@ -1,3 +1,4 @@
+import sys
 import clingo
 
 
@@ -488,7 +489,7 @@ class RobotPrioritized(Robot):
         # similar to Robot.solve() / Robot.find_new_plan()
         # but needs to add the additional input to the program
         # and clear additional inputs after solving
-        self.prg = clingo.Control()
+        self.prg = clingo.Control(arguments=["-Wnone"])
         self.prg.load(self.encoding)
         self.prg.load(self.instance)
         self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
@@ -524,10 +525,13 @@ class RobotPrioritized(Robot):
                     if atom.name == "putdown":
                         self.plan_length = atom.arguments[1].number
 
+        #print(self.model, file=sys.stderr)
+
         if not found_model:
             self.plan_length = -1
             self.next_action = clingo.Function("", [])
-            self.available_shelves = []
+            if self.shelf == -1:
+                self.available_shelves = []
         else:
             self.t = 0
             self.get_next_action()
@@ -535,17 +539,22 @@ class RobotPrioritized(Robot):
 
         return found_model
 
-    def get_plan(self):
+    def get_plan(self, offset):
         # returns all pos and move atoms from current timestep on
         # and maps the timesteps of these atoms
         # i.e. such that the next action is t=1 and so on
         plan = []
         for atom in self.model:
-            if (atom.name == "pos" or atom.name == "move") and (atom.arguments[2].number >= self.t):
+            if (atom.name == "pos" and atom.arguments[2].number >= self.t + offset - 1) or (
+                    atom.name == "move" and atom.arguments[2].number >= self.t + offset):
                 plan.append(atom.name + "((" + str(atom.arguments[0].arguments[0]) + "," +
                             str(atom.arguments[0].arguments[1]) + ")," + str(atom.arguments[1].number) + "," +
-                            str(atom.arguments[2].number - self.t + 1) + ").")
+                            str(atom.arguments[2].number - (self.t + offset - 1)) + ").")
+
         return plan
 
     def add_plan(self, plan):
         self.additional_inputs += plan
+
+    def clear_additional_input(self):
+        self.additional_inputs = []

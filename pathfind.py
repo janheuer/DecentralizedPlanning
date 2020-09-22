@@ -1173,6 +1173,7 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
 class PathfindDecentralizedPrioritized(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
                  verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+        self.performed_action: [int] = []
         super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
                          timeout)
 
@@ -1188,17 +1189,19 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
 
     def plan(self, robot: RobotPrioritized):
         # collect plans from all other robots
-        #print("collecting plans for robot "+str(robot.id))
+        #print("collecting plans for robot "+str(robot.id)+" at t="+str(self.t), file=sys.stderr)
+        #print("the following robots already performed actions: "+str(self.performed_action), file=sys.stderr)
         for r in self.robots:
             if robot != r:
-                #print("plan of robot "+str(r.id))
-                #print(r.get_plan())
-                robot.add_plan(r.get_plan())
+                #print("plan of robot "+str(r.id), file=sys.stderr)
+                #print(r.get_plan(1 if (r.id not in self.performed_action and self.t > 0) else 0), file=sys.stderr)
+                robot.add_plan(r.get_plan(1 if (r.id not in self.performed_action and self.t > 0) else 0))
 
         super().plan(robot)
 
-    def run(self):
+        robot.clear_additional_input()
 
+    def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
             if self.timeout < time() - self.start_time and self.timeout != 0:
                 print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
@@ -1206,6 +1209,8 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
             self.t += 1
             for robot in self.robots:
                 self.perform_action(robot)
+                self.performed_action.append(robot.id)
+            self.performed_action = []
 
         if self.benchmark:
             print("Tpl=" + str(self.t) + ",", file=sys.stderr, end='')  # Total plan length
@@ -1246,8 +1251,8 @@ if __name__ == "__main__":
                                                    not args.internal, args.Highways, args.timeout)
     elif args.strategy == 'shortest':
         pathfind = PathfindDecentralizedShortest(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
-                                                 not args.nomodel, args.verbose, verbose_out, benchmark, False,
-                                                 args.Highways, args.timeout)
+                                                 not args.nomodel, args.verbose, verbose_out, benchmark,
+                                                 not args.internal, args.Highways, args.timeout)
     elif args.strategy == 'crossing':
         # TODO: use new encoding
         pathfind = PathfindDecentralizedCrossing(args.instance, "./pathfind.lp", args.domain,
@@ -1255,8 +1260,8 @@ if __name__ == "__main__":
                                                  not args.internal, args.Highways, args.timeout)
     elif args.strategy == 'prioritized':
         pathfind = PathfindDecentralizedPrioritized(args.instance, "./encodings/pathfindPrioritized.lp", args.domain,
-                                                    not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                    not args.internal, args.Highways, args.timeout)
+                                                    not args.nomodel, args.verbose, verbose_out, benchmark, False,
+                                                    args.Highways, args.timeout)
     elif args.strategy == 'centralized':
         # TODO create centralized pathfind object + modifications benchmark timing for centralized
         print("centralized strategy not yet supported", file=sys.stderr)
