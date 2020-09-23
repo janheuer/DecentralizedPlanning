@@ -2,7 +2,7 @@ import clingo
 
 
 class Robot(object):
-    def __init__(self, id, start, encoding, instance, external, highways):
+    def __init__(self, id, start, encoding, instance, external, highways, clingo_arguments):
         """Initialize the robot:
         Data structure to save inputs
         Clingo object"""
@@ -28,10 +28,11 @@ class Robot(object):
         self.instance = instance
         self.external = external
         self.highways = highways
+        self.clingo_arguments = clingo_arguments
 
         # when internal is used clingo object initialized before solve
         if self.external:
-            self.prg = clingo.Control()
+            self.prg = clingo.Control(self.clingo_arguments)
             self.prg.load(encoding)
             self.prg.load(instance)
             parts = [("base", []), ("decentralized", [self.id])]
@@ -73,8 +74,9 @@ class Robot(object):
                 for j in range(len(self.state[0])):
                     self.prg.assign_external(clingo.Function("block", [(i + 1, j + 1)]), not self.state[i][j])
         else:  # if the flag -i is used
+            # TODO: test -i flag
             # Add all externals directly as literals instead and then ground
-            self.prg = clingo.Control()
+            self.prg = clingo.Control(self.clingo_arguments)
             self.prg.load(self.encoding)
             self.prg.load(self.instance)
             self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
@@ -280,8 +282,8 @@ class RobotShortest(Robot):
 
 class RobotCrossing(Robot):
     # TODO: adjustments for new encoding ?
-    def __init__(self, id, start, encoding, instance, external, highways):
-        super().__init__(id, start, encoding, instance, external, highways)
+    def __init__(self, id, start, encoding, instance, external, highways, clingo_arguments):
+        super().__init__(id, start, encoding, instance, external, highways, clingo_arguments)
 
         """Additional initialization for crossing strategy"""
         self.using_crossroad = False
@@ -297,7 +299,7 @@ class RobotCrossing(Robot):
         self.replanned = False
 
         if self.external:
-            self.crossroad = clingo.Control()
+            self.crossroad = clingo.Control(self.clingo_arguments)
             self.crossroad.load("./crossroad.lp")
             self.crossroad.load(self.instance)
             self.crossroad.ground([("base", []), ("external", [])])
@@ -325,7 +327,7 @@ class RobotCrossing(Robot):
             for cross in self.blocked_crossings:
                 self.crossroad.assign_external(clingo.Function("block", [cross[0], cross[1]]), True)
         else:
-            self.crossroad = clingo.Control()
+            self.crossroad = clingo.Control(self.clingo_arguments)
             self.crossroad.load("./crossroad.lp")
             self.crossroad.load(self.instance)
             self.crossroad.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
@@ -479,8 +481,8 @@ class RobotCrossing(Robot):
 
 
 class RobotPrioritized(Robot):
-    def __init__(self, id, start, encoding, instance, external, highways):
-        super().__init__(id, start, encoding, instance, external, highways)
+    def __init__(self, id, start, encoding, instance, external, highways, clingo_arguments):
+        super().__init__(id, start, encoding, instance, external, highways, clingo_arguments)
 
         self.additional_inputs = []
         self.blocked_positions = []
@@ -489,7 +491,7 @@ class RobotPrioritized(Robot):
         # similar to Robot.solve() / Robot.find_new_plan()
         # but needs to add the additional input to the program
         # and clear additional inputs after solving
-        self.prg = clingo.Control(arguments=["-Wnone"])
+        self.prg = clingo.Control(self.clingo_arguments)
         self.prg.load(self.encoding)
         self.prg.load(self.instance)
         self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
