@@ -281,7 +281,6 @@ class RobotShortest(Robot):
 
 
 class RobotCrossing(Robot):
-    # TODO: adjustments for new encoding ?
     def __init__(self, id, start, encoding, instance, external, highways, clingo_arguments):
         super().__init__(id, start, encoding, instance, external, highways, clingo_arguments)
 
@@ -298,9 +297,11 @@ class RobotCrossing(Robot):
 
         self.replanned = False
 
+        self.crossroad_encoding = "./encodings/crossroad.lp"
+
         if self.external:
             self.crossroad = clingo.Control(self.clingo_arguments)
-            self.crossroad.load("./crossroad.lp")
+            self.crossroad.load(self.crossroad_encoding)
             self.crossroad.load(self.instance)
             self.crossroad.ground([("base", []), ("external", [])])
 
@@ -323,17 +324,17 @@ class RobotCrossing(Robot):
         """Find the nearest crossroad
         Similar to solve but with crossroad encoding"""
         if self.external:
-            self.crossroad.assign_external(clingo.Function("start", [self.pos[0], self.pos[1], 1]), True)
+            self.crossroad.assign_external(clingo.Function("start", [(self.pos[0], self.pos[1]), self.id]), True)
             for cross in self.blocked_crossings:
-                self.crossroad.assign_external(clingo.Function("block", [cross[0], cross[1]]), True)
+                self.crossroad.assign_external(clingo.Function("block", [(cross[0], cross[1])]), True)
         else:
             self.crossroad = clingo.Control(self.clingo_arguments)
-            self.crossroad.load("./crossroad.lp")
+            self.crossroad.load(self.crossroad_encoding)
             self.crossroad.load(self.instance)
-            self.crossroad.add("start", ["pos0", "pos1"], "start(pos0, pos1, 1).")
+            self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
             for cross in self.blocked_crossings:
-                self.crossroad.add("base", [], "block(" + str(cross[0]) + ", " + str(cross[1]) + ").")
-            self.crossroad.ground([("base", []), ("start", [self.pos[0], self.pos[1]])])
+                self.crossroad.add("base", [], "block((" + str(cross[0]) + ", " + str(cross[1]) + ")).")
+            self.crossroad.ground([("base", [])])
 
         self.cross_model = []
 
@@ -355,9 +356,9 @@ class RobotCrossing(Robot):
         self.cross_model.sort(key=lambda atom: atom.arguments[2].number)
 
         if self.external:
-            self.crossroad.assign_external(clingo.Function("start", [self.pos[0], self.pos[1], 1]), False)
+            self.crossroad.assign_external(clingo.Function("start", [(self.pos[0], self.pos[1]), self.id]), False)
             for cross in self.blocked_crossings:
-                self.crossroad.assign_external(clingo.Function("block", [cross[0], cross[1]]), False)
+                self.crossroad.assign_external(clingo.Function("block", [(cross[0], cross[1])]), False)
 
     def reset_crossing(self):
         """Reinitialize all crossing related variables"""
@@ -376,8 +377,9 @@ class RobotCrossing(Robot):
         """Duplicate the last move of the dodging (used in nested conflicts)"""
         last_move = self.cross_model[self.cross_length - 1]
         self.cross_model.append(clingo.Function(last_move.name,
-                                                [last_move.arguments[0].number, last_move.arguments[1].number,
-                                                 last_move.arguments[2].number + 1, last_move.arguments[3].number]))
+                                                [(last_move.arguments[0].arguments[0].number,
+                                                  last_move.arguments[0].arguments[1].number),
+                                                 last_move.arguments[1].number, last_move.arguments[2].number + 1]))
         self.cross_length += 1
 
     def set_in_conflict(self, t_conflict):
@@ -420,8 +422,10 @@ class RobotCrossing(Robot):
             if atom.name == "move":
                 # invert directions and time
                 return_model.append(clingo.Function("move",
-                                                    [-1 * atom.arguments[0].number, -1 * atom.arguments[1].number,
-                                                     total_t - (atom.arguments[2].number - 1), 1]))
+                                                    [(-1 * atom.arguments[0].arguments[0].number,
+                                                      -1 * atom.arguments[0].arguments[1].number),
+                                                     atom.arguments[1].number,
+                                                     total_t - (atom.arguments[2].number - 1)]))
 
         # merge cross_model and model to new_model
         new_model = []
@@ -433,35 +437,38 @@ class RobotCrossing(Robot):
                     new_model.append(atom)
                 # steps in future have to be move back total_t timesteps
                 else:
-                    new_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number,
-                                                                 atom.arguments[2].number + total_t,
-                                                                 atom.arguments[3].number]))
+                    new_model.append(clingo.Function(atom.name, [(atom.arguments[0].arguments[0].number,
+                                                                  atom.arguments[0].arguments[1].number),
+                                                                 atom.arguments[1].number,
+                                                                 atom.arguments[2].number + total_t]))
             # same thing for all other action atoms
             elif atom.name in ["pickup", "putdown"]:
                 if atom.arguments[0].number < self.t:
                     new_model.append(atom)
                 else:
                     new_model.append(
-                        clingo.Function(atom.name, [atom.arguments[0].number + total_t, atom.arguments[1].number]))
+                        clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number + total_t]))
             elif atom.name == "deliver":
                 if atom.arguments[0].number < self.t:
                     new_model.append(atom)
                 else:
                     new_model.append(clingo.Function(atom.name,
-                                                     [atom.arguments[0].number + total_t, atom.arguments[1].number,
-                                                      atom.arguments[2].number, atom.arguments[3].number]))
+                                                     [atom.arguments[0].number, atom.arguments[1].number,
+                                                      atom.arguments[2].number, atom.arguments[3].number + total_t]))
             else:
                 new_model.append(atom)
 
         # add cross_model
         for atom in self.cross_model:
-            new_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number,
-                                                         atom.arguments[2].number + self.t - 1,
-                                                         atom.arguments[3].number]))
+            new_model.append(clingo.Function(atom.name, [(atom.arguments[0].arguments[0].number,
+                                                          atom.arguments[0].arguments[1].number),
+                                                         atom.arguments[1].number,
+                                                         atom.arguments[2].number + self.t - 1]))
         for atom in return_model:
-            new_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number,
-                                                         atom.arguments[2].number + self.t - 1,
-                                                         atom.arguments[3].number]))
+            new_model.append(clingo.Function(atom.name, [(atom.arguments[0].arguments[0].number,
+                                                          atom.arguments[0].arguments[1].number),
+                                                         atom.arguments[1].number,
+                                                         atom.arguments[2].number + self.t - 1]))
 
         self.model = new_model
         self.t -= 1
