@@ -303,7 +303,7 @@ class RobotCrossing(Robot):
             self.crossroad = clingo.Control(self.clingo_arguments)
             self.crossroad.load(self.crossroad_encoding)
             self.crossroad.load(self.instance)
-            self.crossroad.ground([("base", []), ("external", [])])
+            self.crossroad.ground([("base", []), ("external", [self.id])])
 
     def action(self):
         if self.cross_done == self.t:
@@ -334,7 +334,7 @@ class RobotCrossing(Robot):
             self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
             for cross in self.blocked_crossings:
                 self.crossroad.add("base", [], "block((" + str(cross[0]) + ", " + str(cross[1]) + ")).")
-            self.crossroad.ground([("base", [])])
+            self.crossroad.ground([("base", []), ("noExternal", [self.id])])
 
         self.cross_model = []
 

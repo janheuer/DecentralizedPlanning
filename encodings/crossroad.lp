@@ -1,7 +1,7 @@
 % inputs
 #program base.
 highway(C) :- init(object(highway,_),value(at,C)).
-highway((X,Y)) :- init(object(node, _),value(at,C)), init(object(robot,R),value(at,C)).
+highway(C) :- init(object(node,_),value(at,C)), init(object(robot,R),value(at,C)).
 
 dir((1,0)). dir((-1,0)). dir((0,1)). dir((0,-1)).
 
