@@ -292,12 +292,17 @@ class PathfindDecentralized(Pathfind):
             self.plan(robot)
         else:
             self.print_action(robot.id, name, args, self.t)
-        if name == "putdown":
-            # order is finished
-            self.finish_order(robot.order, robot.shelf)
-            robot.release_order()
-            # plan a new order
-            self.plan(robot)
+        if self.domain == "m":
+            if name == "pickup":
+                self.finish_order(robot.order, robot.shelf)
+                robot.release_order()
+        else:
+            if name == "putdown":
+                # order is finished
+                self.finish_order(robot.order, robot.shelf)
+                robot.release_order()
+                # plan a new order
+                self.plan(robot)
 
     def assign_order(self, robot):
         """Assign the first possible order to the robot
@@ -408,9 +413,6 @@ class PathfindDecentralized(Pathfind):
 class PathfindDecentralizedSequential(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
                  verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
-        if domain == "m":
-            print("domain m not yet supported for sequential strategy", file=sys.stderr)
-            sys.exit(0)
         super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
                          timeout)
 
@@ -452,9 +454,6 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
 class PathfindDecentralizedShortest(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
                  verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
-        if domain == "m":
-            print("domain m not yet supported for shortest replanning strategy", file=sys.stderr)
-            sys.exit(0)
         super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
                          timeout)
 
@@ -1247,20 +1246,35 @@ if __name__ == "__main__":
     if benchmark:
         t1 = time()
     if args.strategy == 'sequential':
-        pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
+        if args.domain == "m":
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized-m.lp", args.domain,
+                                                   not args.nomodel, args.verbose, verbose_out, benchmark,
+                                                   not args.internal, args.Highways, args.timeout)
+        else:
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
                                                    not args.nomodel, args.verbose, verbose_out, benchmark,
                                                    not args.internal, args.Highways, args.timeout)
     elif args.strategy == 'shortest':
-        pathfind = PathfindDecentralizedShortest(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
-                                                 not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                 not args.internal, args.Highways, args.timeout)
+        if args.domain == "m":
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized-m.lp", args.domain,
+                                                   not args.nomodel, args.verbose, verbose_out, benchmark,
+                                                   not args.internal, args.Highways, args.timeout)
+        else:
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
+                                                   not args.nomodel, args.verbose, verbose_out, benchmark,
+                                                   not args.internal, args.Highways, args.timeout)
     elif args.strategy == 'crossing':
         # TODO: use new encoding
         pathfind = PathfindDecentralizedCrossing(args.instance, "./pathfind.lp", args.domain,
                                                  not args.nomodel, args.verbose, verbose_out, benchmark,
                                                  not args.internal, args.Highways, args.timeout)
     elif args.strategy == 'prioritized':
-        pathfind = PathfindDecentralizedPrioritized(args.instance, "./encodings/pathfindPrioritized.lp", args.domain,
+        if args.domain == "m":
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindPrioritized-m.lp", args.domain,
+                                                   not args.nomodel, args.verbose, verbose_out, benchmark, False,
+                                                    args.Highways, args.timeout)
+        else:
+            pathfind = PathfindDecentralizedPrioritized(args.instance, "./encodings/pathfindPrioritized.lp", args.domain,
                                                     not args.nomodel, args.verbose, verbose_out, benchmark, False,
                                                     args.Highways, args.timeout)
     elif args.strategy == 'centralized':
