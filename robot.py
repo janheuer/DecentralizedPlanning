@@ -86,7 +86,6 @@ class Robot(object):
                 self.prg.add("base", [], "deliver(" + str(self.order[1]) + "," + str(self.order[0]) + "," + str(self.id)
                              + ",0).")
 
-            self.prg.add("base", [], "block((-1,-1)).")
             for i in range(len(self.state)):
                 for j in range(len(self.state[0])):
                     if not (self.state[i][j]):
