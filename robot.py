@@ -442,13 +442,13 @@ class RobotCrossing(Robot):
                                                                  atom.arguments[2].number + total_t]))
             # same thing for all other action atoms
             elif atom.name in ["pickup", "putdown"]:
-                if atom.arguments[0].number < self.t:
+                if atom.arguments[1].number < self.t:
                     new_model.append(atom)
                 else:
                     new_model.append(
                         clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number + total_t]))
             elif atom.name == "deliver":
-                if atom.arguments[0].number < self.t:
+                if atom.arguments[3].number < self.t:
                     new_model.append(atom)
                 else:
                     new_model.append(clingo.Function(atom.name,
