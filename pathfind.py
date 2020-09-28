@@ -1275,35 +1275,39 @@ if __name__ == "__main__":
         t1 = time()
     if args.strategy == 'sequential':
         if args.domain == "m":
-            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized-m.lp", args.domain,
-                                                   not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                   not args.internal, args.Highways, args.timeout, clingo_arguments)
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized-m.lp",
+                                                       args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                       benchmark, not args.internal, args.Highways, args.timeout,
+                                                       clingo_arguments)
         else:
-            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
-                                                   not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                   not args.internal, args.Highways, args.timeout, clingo_arguments)
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp",
+                                                       args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                       benchmark, not args.internal, args.Highways, args.timeout,
+                                                       clingo_arguments)
     elif args.strategy == 'shortest':
         if args.domain == "m":
-            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized-m.lp", args.domain,
-                                                   not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                   not args.internal, args.Highways, args.timeout, clingo_arguments)
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized-m.lp",
+                                                       args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                       benchmark, not args.internal, args.Highways, args.timeout,
+                                                       clingo_arguments)
         else:
-            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
-                                                   not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                   not args.internal, args.Highways, args.timeout, clingo_arguments)
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp",
+                                                       args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                       benchmark, not args.internal, args.Highways, args.timeout,
+                                                       clingo_arguments)
     elif args.strategy == 'crossing':
         pathfind = PathfindDecentralizedCrossing(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
                                                  not args.nomodel, args.verbose, verbose_out, benchmark,
                                                  not args.internal, args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'prioritized':
         if args.domain == "m":
-            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindPrioritized-m.lp", args.domain,
-                                                   not args.nomodel, args.verbose, verbose_out, benchmark, False,
-                                                    args.Highways, args.timeout, clingo_arguments)
+            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindPrioritized-m.lp",
+                                                       args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                       benchmark, False, args.Highways, args.timeout, clingo_arguments)
         else:
-            pathfind = PathfindDecentralizedPrioritized(args.instance, "./encodings/pathfindPrioritized.lp", args.domain,
-                                                    not args.nomodel, args.verbose, verbose_out, benchmark, False,
-                                                    args.Highways, args.timeout, clingo_arguments)
+            pathfind = PathfindDecentralizedPrioritized(args.instance, "./encodings/pathfindPrioritized.lp",
+                                                        args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                        benchmark, False, args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'centralized':
         # TODO create centralized pathfind object + modifications benchmark timing for centralized
         print("centralized strategy not yet supported", file=sys.stderr)
