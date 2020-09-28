@@ -8,11 +8,14 @@ import sys
 
 
 class Pathfind(object):
-    def __init__(self, instance: str, domain: str, benchmark: bool, model_output: bool) -> None:
+    def __init__(self, instance: str, encoding: str, domain: str, benchmark: bool, model_output: bool,
+                 clingo_arguments: List[str]) -> None:
         self.instance: str = instance
+        self.encoding: str = encoding
         self.domain: str = domain
         self.benchmark: bool = benchmark
         self.model_output: bool = model_output
+        self.clingo_arguments: List[str] = clingo_arguments
 
         self.nodes = None
         self.highways = None
@@ -22,7 +25,7 @@ class Pathfind(object):
         self.orders = None
         self.products = None
 
-        self.prg = clingo.Control()
+        self.prg = clingo.Control(self.clingo_arguments)
         self.prg.load(instance)
 
         if self.benchmark:
@@ -153,14 +156,13 @@ class Pathfind(object):
 
 
 class PathfindCentralized(Pathfind):
-    def __init__(self, instance: str, domain: str, benchmark: bool, model_output: bool) -> None:
+    def __init__(self, instance: str, encoding: str, domain: str, benchmark: bool, model_output: bool,
+                 clingo_arguments: List[str]) -> None:
         if domain == "m":
             print("domain m not yet supported for centralized strategy", file=sys.stderr)
             sys.exit(0)
 
-        super().__init__(instance, domain, benchmark, model_output)
-
-        self.encoding: str = "./encodings/pathfindCentralized.lp"
+        super().__init__(instance, encoding, domain, benchmark, model_output, clingo_arguments)
 
         self.assign_orders()
 
@@ -221,19 +223,19 @@ class PathfindCentralized(Pathfind):
 
 class PathfindDecentralized(Pathfind):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int,
+                 clingo_arguments: List[str]) -> None:
         """Assigns initial order to the robots and plans it
         Instance is saved in data structures by helper function parse_instance
         (also generates the Robot objects)
         """
         # input parameters (needed in init)
-        self.encoding: str = encoding
         self.verbose: bool = verbose
         self.verbose_out: TextIO = verbose_out
         self.external: bool = external
         self.highwaysFlag: bool = highways
         self.timeout: int = timeout
-        super().__init__(instance, domain, benchmark, model_output)
+        super().__init__(instance, encoding, domain, benchmark, model_output, clingo_arguments)
 
         # take time for checking if timeout
         self.start_time: float = time()
@@ -412,14 +414,16 @@ class PathfindDecentralized(Pathfind):
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int,
+                 clingo_arguments: List[str]) -> None:
         super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
-                         timeout)
+                         timeout, clingo_arguments)
 
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
             ts: float = time()
-        self.robots.append(RobotSequential(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag))
+        self.robots.append(RobotSequential(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag,
+                                           self.clingo_arguments))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -453,14 +457,16 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
 
 class PathfindDecentralizedShortest(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int,
+                 clingo_arguments: List[str]) -> None:
         super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
-                         timeout)
+                         timeout, clingo_arguments)
 
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
             ts: float = time()
-        self.robots.append(RobotShortest(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag))
+        self.robots.append(RobotShortest(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag,
+                                         self.clingo_arguments))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -644,19 +650,20 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
 
 
 class PathfindDecentralizedCrossing(PathfindDecentralized):
-    # TODO: adjustments for new encoding ?
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int,
+                 clingo_arguments: List[str]) -> None:
         if domain == "m":
             print("domain m not yet supported for crossing strategy", file=sys.stderr)
             sys.exit(0)
         super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
-                         timeout)
+                         timeout, clingo_arguments)
 
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
             ts: float = time()
-        self.robots.append(RobotCrossing(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag))
+        self.robots.append(RobotCrossing(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag,
+                                         self.clingo_arguments))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -821,8 +828,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
             for atom in r1.cross_model:
                 if atom.name == "move":
                     if atom.arguments[2].number == 1:
-                        next_pos[0] += atom.arguments[0].number
-                        next_pos[1] += atom.arguments[1].number
+                        next_pos[0] += atom.arguments[0].arguments[0].number
+                        next_pos[1] += atom.arguments[0].arguments[1].number
                         break
 
             partner_dir = False
@@ -876,22 +883,28 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                 # have to be the same as the previous move of r1
                 if (atom.arguments[2].number > r2.t) and (atom.arguments[2].number <= (r2.t + r1.cross_length)):
                     # r1.cross_model is sorted so r1.cross_model[t-1] will be the move at time t
-                    if ((atom.arguments[0].number != r1.cross_model[atom.arguments[2].number - r2.t - 1].arguments[
-                        0].number) or
-                            (atom.arguments[1].number != r1.cross_model[atom.arguments[2].number - r2.t - 1].arguments[
-                                1].number)):
+                    if ((atom.arguments[0].arguments[0].number !=
+                         r1.cross_model[atom.arguments[2].number - r2.t - 1].arguments[0].arguments[0].number) or
+                            (atom.arguments[0].arguments[1].number !=
+                             r1.cross_model[atom.arguments[2].number - r2.t - 1].arguments[0].arguments[1].number)):
                         # if the move isn't the same we record the time
                         # the earliest time determines how long r1 has to dodge
                         if t_finished is None:
                             t_finished = atom.arguments[2].number - r2.t
                         elif atom.arguments[2].number - r2.t < t_finished:
                             t_finished = atom.arguments[2].number - r2.t
-            else:
-                if (atom.arguments[0].number > r2.t) and (atom.arguments[0].number <= (r2.t + r1.cross_length)):
+            elif atom.name in ["putdown", "pickup"]:
+                if (atom.arguments[1].number > r2.t) and (atom.arguments[1].number <= (r2.t + r1.cross_length)):
                     if t_finished is None:
-                        t_finished = atom.arguments[0].number - r2.t
-                    elif atom.arguments[0].number - r2.t < t_finished:
-                        t_finished = atom.arguments[0].number - r2.t
+                        t_finished = atom.arguments[1].number - r2.t
+                    elif atom.arguments[1].number - r2.t < t_finished:
+                        t_finished = atom.arguments[1].number - r2.t
+            elif atom.name == "deliver":
+                if (atom.arguments[3].number > r2.t) and (atom.arguments[3].number <= (r2.t + r1.cross_length)):
+                    if t_finished is None:
+                        t_finished = atom.arguments[3].number - r2.t
+                    elif atom.arguments[3].number - r2.t < t_finished:
+                        t_finished = atom.arguments[3].number - r2.t
 
         filtered_model = []
         # r1 has to dodge all the way
@@ -905,12 +918,16 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                     # because r1.cross_length is the time to the crossing, +1 will be the moves off the crossing
                     if atom.arguments[2].number == r1.cross_length + 1:
                         # the direction from which r2 is coming isn't added to the model
-                        if ((atom.arguments[0].number == -1 * move_to_cross.arguments[0].number) and
-                                (atom.arguments[1].number == -1 * move_to_cross.arguments[1].number)):
+                        if ((atom.arguments[0].arguments[0].number ==
+                             -1 * move_to_cross.arguments[0].arguments[0].number) and
+                                (atom.arguments[0].arguments[1].number ==
+                                 -1 * move_to_cross.arguments[0].arguments[1].number)):
                             continue
                         # the direction in which the r2 is moving isn't added to the model
-                        elif ((atom.arguments[0].number == move_from_cross.arguments[0].number) and
-                              (atom.arguments[1].number == move_from_cross.arguments[1].number)):
+                        elif ((atom.arguments[0].arguments[0].number ==
+                               move_from_cross.arguments[0].arguments[0].number) and
+                              (atom.arguments[0].arguments[1].number ==
+                               move_from_cross.arguments[0].arguments[1].number)):
                             continue
                         # now at least 1 direction is left but there could be a second one
                         # the first direction will be used
@@ -961,8 +978,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
             for atom in r2.cross_model:
                 if atom.arguments[2].number == r2.cross_length:
                     r1.cross_model.append(clingo.Function(atom.name,
-                                                          [atom.arguments[0].number, atom.arguments[1].number, 1,
-                                                           atom.arguments[3].number]))
+                                                          [(atom.arguments[0].arguments[0].number,
+                                                            atom.arguments[0].arguments[1].number), r1.id, 1]))
         else:
             # the first move will be removed
             # all other moves will be moved to one timestep earlier
@@ -974,19 +991,19 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                     # last is duplicated, and moved to one timestep earlier
                     if atom.arguments[2].number == r2.cross_length:
                         r1.cross_model.append(clingo.Function(atom.name,
-                                                              [atom.arguments[0].number, atom.arguments[1].number,
-                                                               atom.arguments[2].number - offset,
-                                                               atom.arguments[3].number]))
+                                                              [(atom.arguments[0].arguments[0].number,
+                                                                atom.arguments[0].arguments[1].number),
+                                                               r1.id, atom.arguments[2].number - offset]))
                         r1.cross_model.append(clingo.Function(atom.name,
-                                                              [atom.arguments[0].number, atom.arguments[1].number,
-                                                               atom.arguments[2].number - offset + 1,
-                                                               atom.arguments[3].number]))
+                                                              [(atom.arguments[0].arguments[0].number,
+                                                                atom.arguments[0].arguments[1].number),
+                                                               r1.id, atom.arguments[2].number - offset + 1]))
                     # other moves are just moved to one timestep earlier
                     else:
                         r1.cross_model.append(clingo.Function(atom.name,
-                                                              [atom.arguments[0].number, atom.arguments[1].number,
-                                                               atom.arguments[2].number - offset,
-                                                               atom.arguments[3].number]))
+                                                              [(atom.arguments[0].arguments[0].number,
+                                                                atom.arguments[0].arguments[1].number),
+                                                               r1.id, atom.arguments[2].number - offset]))
         r1.cross_length = len(r1.cross_model)
 
         if not self.next_action_possible(r1, r1.cross_model[0]):
@@ -1001,8 +1018,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         for atom in r1.cross_model:
             if atom.name == "move":
                 if atom.arguments[2].number == 1:
-                    next_pos[0] += atom.arguments[0].number
-                    next_pos[1] += atom.arguments[1].number
+                    next_pos[0] += atom.arguments[0].arguments[0].number
+                    next_pos[1] += atom.arguments[0].arguments[1].number
                     break
 
         # recursively add crossroad to the next robot
@@ -1025,13 +1042,13 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         # compute the first move
         move_x = r2.pos[0] - r1.pos[0]
         move_y = r2.pos[1] - r1.pos[1]
-        r1.cross_model = [clingo.Function("move", [move_x, move_y, 1, 1])]
+        r1.cross_model = [clingo.Function("move", [(move_x, move_y), r1.id, 1])]
         for atom in r2.cross_model:
             # copy all move with t+=1
             if atom.arguments[2].number <= r2.cross_length:
-                r1.cross_model.append(clingo.Function(atom.name, [atom.arguments[0].number, atom.arguments[1].number,
-                                                                  atom.arguments[2].number + 1,
-                                                                  atom.arguments[3].number]))
+                r1.cross_model.append(clingo.Function(atom.name, [(atom.arguments[0].arguments[0].number,
+                                                                   atom.arguments[0].arguments[1].number),
+                                                                  r1.id, atom.arguments[2].number + 1]))
         r1.cross_length = len(r1.cross_model)
 
         changed.append(r1)
@@ -1120,7 +1137,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
             return possible
 
         # calculate next_pos
-        next_pos = [r.pos[0] + action.arguments[0].number, r.pos[1] + action.arguments[1].number]
+        next_pos = [r.pos[0] + action.arguments[0].arguments[0].number,
+                    r.pos[1] + action.arguments[0].arguments[1].number]
 
         # check is next_pos is a node
         is_node = False
@@ -1130,16 +1148,17 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                 break
         if not is_node:
             self.print_verbose(
-                "r" + str(r.id) + " would move off the field with move(" + str(action.arguments[0].number) + "," + str(
-                    action.arguments[1].number) + ") at t=" + str(self.t))
+                "r" + str(r.id) + " would move off the field with move(" + str(action.arguments[0].arguments[0].number)
+                + "," + str(action.arguments[0].arguments[1].number) + ") at t=" + str(self.t))
             possible = False
 
         # check for moving onto a shelf which isn't the shelf of the robot
         if possible:
             for [id, x, y] in self.shelves:
                 if (next_pos[0] == x) and (next_pos[1] == y) and (r.shelf != id):
-                    self.print_verbose("r" + str(r.id) + " would go onto shelf with move(" + str(
-                        action.arguments[0].number) + "," + str(action.arguments[1].number) + ") at t=" + str(self.t))
+                    self.print_verbose("r" + str(r.id) + " would go onto shelf with move("
+                                       + str(action.arguments[0].arguments[0].number) + ","
+                                       + str(action.arguments[0].arguments[1].number) + ") at t=" + str(self.t))
                     possible = False
                     break
 
@@ -1147,8 +1166,9 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         if possible:
             for [id, x, y] in self.pickingstations:
                 if (next_pos[0] == x) and (next_pos[1] == y) and (r.order[2] != id):
-                    self.print_verbose("r" + str(r.id) + " would go onto station with move(" + str(
-                        action.arguments[0].number) + "," + str(action.arguments[1].number) + ") at t=" + str(self.t))
+                    self.print_verbose("r" + str(r.id) + " would go onto station with move("
+                                       + str(action.arguments[0].arguments[0].number) + ","
+                                       + str(action.arguments[0].arguments[1].number) + ") at t=" + str(self.t))
                     possible = False
                     break
 
@@ -1171,15 +1191,17 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
 
 class PathfindDecentralizedPrioritized(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int) -> None:
+                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int,
+                 clingo_arguments: List[str]) -> None:
         self.performed_action: [int] = []
         super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
-                         timeout)
+                         timeout, clingo_arguments)
 
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
             ts: float = time()
-        self.robots.append(RobotPrioritized(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag))
+        self.robots.append(RobotPrioritized(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag,
+                                            self.clingo_arguments))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -1231,16 +1253,22 @@ if __name__ == "__main__":
                         choices=['sequential', 'shortest', 'crossing', 'prioritized', 'centralized'],
                         default='sequential', type=str)
     parser.add_argument("-i", "--internal", help="disables use of external atoms (only for sequential, shortest and "
-                                                 "crossing strategy)", default=False, action="store_true")
+                                                 "crossing strategy; prioritized strategy never uses externals)",
+                        default=False, action="store_true")
     parser.add_argument("-H", "--Highways", help="generate highway tuples if they are not given in the instance",
                         default=False, action="store_true")
     parser.add_argument("-t", "--timeout", help="time in seconds until the program stops and writes a timeout message",
                         default=0, type=int)
     parser.add_argument("-d", "--domain", help="asprilo domain to be used (default: b)", type=str, default="b",
                         choices=["b", "m"])
+    parser.add_argument("--debug", help="enables clingo warnings", default=False, action="store_true")
     args = parser.parse_args()
     benchmark = args.benchmark
     verbose_out: TextIO = sys.stderr if not benchmark else sys.stdout
+
+    clingo_arguments = []
+    if not args.debug:
+        clingo_arguments.append("-Wnone")
 
     # Initialize the Pathfind object
     if benchmark:
@@ -1249,34 +1277,33 @@ if __name__ == "__main__":
         if args.domain == "m":
             pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized-m.lp", args.domain,
                                                    not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                   not args.internal, args.Highways, args.timeout)
+                                                   not args.internal, args.Highways, args.timeout, clingo_arguments)
         else:
             pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
                                                    not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                   not args.internal, args.Highways, args.timeout)
+                                                   not args.internal, args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'shortest':
         if args.domain == "m":
             pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized-m.lp", args.domain,
                                                    not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                   not args.internal, args.Highways, args.timeout)
+                                                   not args.internal, args.Highways, args.timeout, clingo_arguments)
         else:
             pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
                                                    not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                   not args.internal, args.Highways, args.timeout)
+                                                   not args.internal, args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'crossing':
-        # TODO: use new encoding
-        pathfind = PathfindDecentralizedCrossing(args.instance, "./pathfind.lp", args.domain,
+        pathfind = PathfindDecentralizedCrossing(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
                                                  not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                 not args.internal, args.Highways, args.timeout)
+                                                 not args.internal, args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'prioritized':
         if args.domain == "m":
             pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindPrioritized-m.lp", args.domain,
                                                    not args.nomodel, args.verbose, verbose_out, benchmark, False,
-                                                    args.Highways, args.timeout)
+                                                    args.Highways, args.timeout, clingo_arguments)
         else:
             pathfind = PathfindDecentralizedPrioritized(args.instance, "./encodings/pathfindPrioritized.lp", args.domain,
                                                     not args.nomodel, args.verbose, verbose_out, benchmark, False,
-                                                    args.Highways, args.timeout)
+                                                    args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'centralized':
         # TODO create centralized pathfind object + modifications benchmark timing for centralized
         print("centralized strategy not yet supported", file=sys.stderr)
