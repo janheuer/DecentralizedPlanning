@@ -144,7 +144,8 @@ class Pathfind(object):
     def print_action(self, rid: int, name: str, args: List[int], t: int) -> None:
         if self.model_output:
             # for wait no atom is printed
-            if name != "wait":
+            # in domain m pickups are not printed
+            if (name != "wait") and (name != "pickup" and self.domain == "m"):
                 txt = "occurs(object(robot," + str(rid) + "),action(" + name + ",("
                 if (name == "move") or (name == "deliver"):
                     txt += str(args[0]) + "," + str(args[1])
@@ -158,6 +159,8 @@ class Pathfind(object):
 class PathfindCentralized(Pathfind):
     def __init__(self, instance: str, encoding: str, domain: str, benchmark: bool, model_output: bool,
                  clingo_arguments: List[str]) -> None:
+        # TODO: adjustments for new encoding
+        # TODO: adjustments for m domain
         if domain == "m":
             print("domain m not yet supported for centralized strategy", file=sys.stderr)
             sys.exit(0)
@@ -451,6 +454,9 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 self.perform_action(robot)
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
 
+        if self.domain == "m":
+            self.t -= 1
+
         if self.benchmark:
             print("Tpl=" + str(self.t) + ",", file=sys.stderr, end='')  # Total plan length
 
@@ -590,6 +596,9 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
                             elif r2.next_action.name == "move":
                                 self.print_verbose("r" + str(r1.id) + " delivers")
                                 self.add_wait(r2)
+
+            if self.domain == "m":
+                self.t -= 1
 
             if self.benchmark:
                 self.real_time += max(rltime)
@@ -799,6 +808,9 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
             for robot in self.robots:
                 self.perform_action(robot)
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0
+
+        if self.domain == "m":
+            self.t -= 1
 
         if self.benchmark:
             print("Tpl=" + str(self.t) + ",", file=sys.stderr, end='')  # Total plan length
@@ -1233,6 +1245,9 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
                 self.perform_action(robot)
                 self.performed_action.append(robot.id)
             self.performed_action = []
+
+        if self.domain == "m":
+            self.t -= 1
 
         if self.benchmark:
             print("Tpl=" + str(self.t) + ",", file=sys.stderr, end='')  # Total plan length
