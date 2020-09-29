@@ -145,7 +145,7 @@ class Pathfind(object):
         if self.model_output:
             # for wait no atom is printed
             # in domain m pickups are not printed
-            if (name != "wait") and (name != "pickup" and self.domain == "m"):
+            if not ((name == "wait") or (name == "pickup" and self.domain == "m")):
                 txt = "occurs(object(robot," + str(rid) + "),action(" + name + ",("
                 if (name == "move") or (name == "deliver"):
                     txt += str(args[0]) + "," + str(args[1])
