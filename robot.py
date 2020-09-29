@@ -74,7 +74,6 @@ class Robot(object):
                 for j in range(len(self.state[0])):
                     self.prg.assign_external(clingo.Function("block", [(i + 1, j + 1)]), not self.state[i][j])
         else:  # if the flag -i is used
-            # TODO: test -i flag
             # Add all externals directly as literals instead and then ground
             self.prg = clingo.Control(self.clingo_arguments)
             self.prg.load(self.encoding)
@@ -330,7 +329,8 @@ class RobotCrossing(Robot):
             self.crossroad = clingo.Control(self.clingo_arguments)
             self.crossroad.load(self.crossroad_encoding)
             self.crossroad.load(self.instance)
-            self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
+            self.crossroad.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) +
+                               ").")
             for cross in self.blocked_crossings:
                 self.crossroad.add("base", [], "block((" + str(cross[0]) + ", " + str(cross[1]) + ")).")
             self.crossroad.ground([("base", []), ("noExternal", [self.id])])
