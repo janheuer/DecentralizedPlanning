@@ -376,9 +376,12 @@ class PathfindDecentralized(Pathfind):
             resolve = False
             if not self.assign_order(robot):  # try to assign a order
                 return False  # no order can be assigned
-            self.print_verbose(
-                "robot" + str(robot.id) + " planning order id=" + str(robot.order[0]) + " product=" + str(
-                    robot.order[1]) + " station=" + str(robot.order[2]) + " at t=" + str(self.t))
+            if self.domain == "m":
+                self.print_verbose("robot" + str(robot.id) + " planning order id=" + str(robot.order[0]) + " product="
+                                   + str(robot.order[1]) + " at t=" + str(self.t))
+            else:
+                self.print_verbose("robot" + str(robot.id) + " planning order id=" + str(robot.order[0]) + " product="
+                                   + str(robot.order[1]) + " station=" + str(robot.order[2]) + " at t=" + str(self.t))
         else:
             resolve = True
             self.print_verbose("robot" + str(robot.id) + " replanning at t=" + str(self.t))
