@@ -665,9 +665,6 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
                  verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int,
                  clingo_arguments: List[str]) -> None:
-        if domain == "m":
-            print("domain m not yet supported for crossing strategy", file=sys.stderr)
-            sys.exit(0)
         super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
                          timeout, clingo_arguments)
 
@@ -1314,9 +1311,15 @@ if __name__ == "__main__":
                                                        benchmark, not args.internal, args.Highways, args.timeout,
                                                        clingo_arguments)
     elif args.strategy == 'crossing':
-        pathfind = PathfindDecentralizedCrossing(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
-                                                 not args.nomodel, args.verbose, verbose_out, benchmark,
-                                                 not args.internal, args.Highways, args.timeout, clingo_arguments)
+        if args.domain == "m":
+            pathfind = PathfindDecentralizedCrossing(args.instance, "./encodings/pathfindDecentralized-m.lp",
+                                                     args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                     benchmark, not args.internal, args.Highways, args.timeout,
+                                                     clingo_arguments)
+        else:
+            pathfind = PathfindDecentralizedCrossing(args.instance, "./encodings/pathfindDecentralized.lp", args.domain,
+                                                     not args.nomodel, args.verbose, verbose_out, benchmark,
+                                                     not args.internal, args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'prioritized':
         if args.domain == "m":
             pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindPrioritized-m.lp",
