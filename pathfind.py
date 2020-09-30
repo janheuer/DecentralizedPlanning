@@ -1301,15 +1301,15 @@ if __name__ == "__main__":
                                                        clingo_arguments)
     elif args.strategy == 'shortest':
         if args.domain == "m":
-            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized-m.lp",
-                                                       args.domain, not args.nomodel, args.verbose, verbose_out,
-                                                       benchmark, args.external, args.Highways, args.timeout,
-                                                       clingo_arguments)
+            pathfind = PathfindDecentralizedShortest(args.instance, "./encodings/pathfindDecentralized-m.lp",
+                                                     args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                     benchmark, args.external, args.Highways, args.timeout,
+                                                     clingo_arguments)
         else:
-            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindDecentralized.lp",
-                                                       args.domain, not args.nomodel, args.verbose, verbose_out,
-                                                       benchmark, args.external, args.Highways, args.timeout,
-                                                       clingo_arguments)
+            pathfind = PathfindDecentralizedShortest(args.instance, "./encodings/pathfindDecentralized.lp",
+                                                     args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                     benchmark, args.external, args.Highways, args.timeout,
+                                                     clingo_arguments)
     elif args.strategy == 'crossing':
         if args.domain == "m":
             pathfind = PathfindDecentralizedCrossing(args.instance, "./encodings/pathfindDecentralized-m.lp",
