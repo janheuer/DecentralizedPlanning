@@ -2,7 +2,7 @@ import clingo
 
 
 class Robot(object):
-    def __init__(self, id, start, encoding, instance, external, highways, clingo_arguments):
+    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments):
         """Initialize the robot:
         Data structure to save inputs
         Clingo object"""
@@ -25,6 +25,7 @@ class Robot(object):
 
         # solving parameters
         self.encoding = encoding
+        self.domain = domain
         self.instance = instance
         self.external = external
         self.highways = highways
@@ -117,7 +118,8 @@ class Robot(object):
                     self.model.append(atom)
                     if atom.name == "chooseShelf":
                         self.shelf = atom.arguments[0].number
-                    if atom.name == "putdown":
+                    elif (atom.name == "putdown" and self.domain == "b") or \
+                         (atom.name == "pickup" and self.domain == "m"):
                         self.plan_length = atom.arguments[1].number
 
         if not found_model:
@@ -279,8 +281,8 @@ class RobotShortest(Robot):
 
 
 class RobotCrossing(Robot):
-    def __init__(self, id, start, encoding, instance, external, highways, clingo_arguments):
-        super().__init__(id, start, encoding, instance, external, highways, clingo_arguments)
+    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments):
+        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments)
 
         """Additional initialization for crossing strategy"""
         self.using_crossroad = False
@@ -487,8 +489,8 @@ class RobotCrossing(Robot):
 
 
 class RobotPrioritized(Robot):
-    def __init__(self, id, start, encoding, instance, external, highways, clingo_arguments):
-        super().__init__(id, start, encoding, instance, external, highways, clingo_arguments)
+    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments):
+        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments)
 
         self.additional_inputs = []
         self.blocked_positions = []
@@ -533,7 +535,8 @@ class RobotPrioritized(Robot):
                     self.model.append(atom)
                     if atom.name == "chooseShelf":
                         self.shelf = atom.arguments[0].number
-                    if atom.name == "putdown":
+                    elif (atom.name == "putdown" and self.domain == "b") or \
+                         (atom.name == "pickup" and self.domain == "m"):
                         self.plan_length = atom.arguments[1].number
 
         if not found_model:

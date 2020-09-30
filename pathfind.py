@@ -428,8 +428,8 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
             ts: float = time()
-        self.robots.append(RobotSequential(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag,
-                                           self.clingo_arguments))
+        self.robots.append(RobotSequential(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+                                           self.highwaysFlag, self.clingo_arguments))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -474,8 +474,8 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
             ts: float = time()
-        self.robots.append(RobotShortest(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag,
-                                         self.clingo_arguments))
+        self.robots.append(RobotShortest(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+                                         self.highwaysFlag, self.clingo_arguments))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -573,8 +573,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
                             # case 2: r1 is deadlocked or the new plan of r1 adds more time
                             # here dr2 can still be -1 -> then dr2<=dr1 would be true
                             # therefore the condition dr2!=-1 is needed
-                            elif (dr1 == -1) or (
-                                    dr2 <= dr1 and dr2 != -1):
+                            elif (dr1 == -1) or (dr2 <= dr1 and dr2 != -1):
                                 self.print_verbose(
                                     "r" + str(r1.id) + " deadlocked or dr" + str(r2.id) + "<=dr" + str(r1.id))
                                 # r1 continues using the old plan
@@ -600,9 +599,6 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
                                 self.print_verbose("r" + str(r1.id) + " delivers")
                                 self.add_wait(r2)
 
-            if self.domain == "m":
-                self.t -= 1
-
             if self.benchmark:
                 self.real_time += max(rltime)
             # print("t" + str(self.t) + "rlt=" + str(ttime), file=sys.stderr, end='')
@@ -615,6 +611,9 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
             for robot in self.robots:
                 if robot.next_action.name != "":
                     self.perform_action(robot)
+
+        if self.domain == "m":
+            self.t -= 1
 
         if self.benchmark:
             print("Tpl=" + str(self.t) + ",", file=sys.stderr, end='')  # Total plan length
@@ -671,8 +670,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
             ts: float = time()
-        self.robots.append(RobotCrossing(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag,
-                                         self.clingo_arguments))
+        self.robots.append(RobotCrossing(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+                                         self.highwaysFlag, self.clingo_arguments))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -1212,8 +1211,8 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
     def init_robot(self, id: int, x: int, y: int) -> None:
         if self.benchmark:
             ts: float = time()
-        self.robots.append(RobotPrioritized(id, [x, y], self.encoding, self.instance, self.external, self.highwaysFlag,
-                                            self.clingo_arguments))
+        self.robots.append(RobotPrioritized(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+                                            self.highwaysFlag, self.clingo_arguments))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
