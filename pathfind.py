@@ -1321,9 +1321,9 @@ if __name__ == "__main__":
                                                      args.external, args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'prioritized':
         if args.external:
-            print("option --external ignored", file=sys.stderr)
+            print("option --external ignored for prioritized strategy", file=sys.stderr)
         if args.domain == "m":
-            pathfind = PathfindDecentralizedSequential(args.instance, "./encodings/pathfindPrioritized-m.lp",
+            pathfind = PathfindDecentralizedPrioritized(args.instance, "./encodings/pathfindPrioritized-m.lp",
                                                        args.domain, not args.nomodel, args.verbose, verbose_out,
                                                        benchmark, False, args.Highways, args.timeout, clingo_arguments)
         else:
