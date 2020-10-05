@@ -18,7 +18,8 @@ station((X, Y), N) :- init(object(pickingStation,N),value(at,(X,Y))).
 product(N, S) :- init(object(product,N),value(on,(S,_))).
 node((X, Y)) :- init(object(node, _), value(at, (X, Y))).
 highway((X, Y)) :- init(object(highway,_),value(at,(X,Y))).
-
+start(C) :- init(object(robot,_),value(at,C)).
+highway(C) :- start(C).
 
 % Create the graph according to lane/2
 nextto((AX, AY), (1,0), (BX,AY)) :- lane(AY, r), highway((AX, AY)), highway((BX,AY)), AX-BX==-1.
@@ -32,6 +33,7 @@ storage(P) :- node(P), not highway(P), not station(P, _).
 way(Y, h) :- highway((X,Y)), storage((X,Y+1)), storage((X,Y-1)).
 way(X, v) :- highway((X,Y)), storage((X+1,Y)), storage((X-1,Y)).
 way(X, v) :- highway((X,Y)), not node((X+1,Y)), storage((X-1,Y)). % Special case for the last lane at the right edge
+way(Y, h) :- highway((X,Y)), not node((X,Y+1)). % bottom edge
 
 % Put the horizontal lanes into an order from top to bottom
 {way(Y, N, h) : way(Y,h)} = 1 :- N = 1..Z, #count{Y:way(Y,h)} = Z.
@@ -58,6 +60,9 @@ nextto((X,3), (0, -1), (X,2)) :- nextto((X-1,2), (0,1), (X-1,3)), node((X, _)).
 nexttoSt((AX,AY), (DX,DY), (BX,BY)) :- storage((AX,AY)), highway((BX,BY)), dir((DX,DY)), AX+DX=BX, AY+DY=BY.
 nextto(P, D, P2) :- nexttoSt(P,D,P2).
 nextto(P2, (-DX, -DY), P) :- nexttoSt(P, (DX,DY), P2).
+
+% from the starting positions the robots can move up
+nextto((X,Y), (0,-1), (X,Y-1)) :- start((X,Y)), highway((X,Y-1)).
 
 #show time/1.
 #show init/2.
