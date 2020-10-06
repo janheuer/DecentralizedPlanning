@@ -416,6 +416,25 @@ class PathfindDecentralized(Pathfind):
         self.print_verbose("r" + str(r.id) + " waits")
         r.wait()
         self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
+        
+    def check_conflicts(self):
+        """Finds all conflicts between robots
+        and returns a list of conflicts
+        """
+        conflicts = []
+        self.prg = clingo.Control(self.clingo_arguments)
+        self.prg.load("./encodings/conflicts.lp")
+        for r in self.robots:
+            if r.next_action != clingo.Function("", []):
+                self.prg.add("base", [], str(r.next_action) + ".")
+            self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
+        self.prg.ground([("base", [])])
+    
+        with self.prg.solve(yield_=True) as h:
+            for m in h:
+                for atom in m.symbols(shown=True):
+                    conflicts.append(atom)
+        return conflicts
 
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
@@ -448,34 +467,26 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 sys.exit(0)
             self.t += 1
             
-            # conflict detection with ASP
+            
+            
             resolved = True 
-            while(resolved == True): # Recheck for conflicts whenever a robot replans
+            while(resolved == True):  # Needs to recheck for conflicts if a robot replans
                 resolved = False
-                self.prg = clingo.Control(self.clingo_arguments)
-                self.prg.load("./encodings/conflicts.lp")
-                for r in self.robots:
-                    if r.next_action != clingo.Function("", []):
-                        self.prg.add("base", [], str(r.next_action) + ".")
-                    self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
-                self.prg.ground([("base", [])])
-    
-                with self.prg.solve(yield_=True) as h:
-                    for m in h:
-                        for atom in m.symbols(shown=True):
-                            if atom.name == "conflict" or atom.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
-                                for r in self.robots:
-                                    if r.id == atom.arguments[0].number:
-                                        r.update_state(self.state)
-                                        resolved = True
-                                        if not self.plan(r):
-                                            r.wait()
-                            if atom.name == "conflictW" or atom.name == "conflictWO": # if another robots waits or performs an action the robot should wait
-                                for r in self.robots:
-                                    if r.id == atom.arguments[0].number:
-                                        r.wait()
-                            
-			
+                conflicts = super().check_conflicts()
+            
+                for conflict in conflicts:
+                    if conflict.name == "conflict" or conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
+                        for r in self.robots:
+                            if r.id == conflict.arguments[0].number:
+                                r.update_state(self.state)
+                                resolved = True
+                                if not self.plan(r):
+                                    super().add_wait(r)
+                    if conflict.name == "conflictW" or conflict.name == "conflictWO": # if another robots waits or performs an action the robot should wait
+                        for r in self.robots:
+                            if r.id == conflict.arguments[0].number:
+                                super().add_wait(r)
+            
             for robot in self.robots:
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
                 self.perform_action(robot)
