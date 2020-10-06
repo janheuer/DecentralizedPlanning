@@ -447,12 +447,36 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
                 sys.exit(0)
             self.t += 1
+            
+            # conflict detection with ASP
+            resolved = True 
+            while(resolved == True): # Recheck for conflicts whenever a robot replans
+                resolved = False
+                self.prg = clingo.Control(self.clingo_arguments)
+                self.prg.load("./encodings/conflicts.lp")
+                for r in self.robots:
+                    if r.next_action != clingo.Function("", []):
+                        self.prg.add("base", [], str(r.next_action) + ".")
+                    self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
+                self.prg.ground([("base", [])])
+    
+                with self.prg.solve(yield_=True) as h:
+                    for m in h:
+                        for atom in m.symbols(shown=True):
+                            if atom.name == "conflict" or atom.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
+                                for r in self.robots:
+                                    if r.id == atom.arguments[0].number:
+                                        r.update_state(self.state)
+                                        resolved = True
+                                        if not self.plan(r):
+                                            r.wait()
+                            if atom.name == "conflictW" or atom.name == "conflictWO": # if another robots waits or performs an action the robot should wait
+                                for r in self.robots:
+                                    if r.id == atom.arguments[0].number:
+                                        r.wait()
+                            
+			
             for robot in self.robots:
-                robot.update_state(self.state)
-                if not robot.action_possible():
-                    if not self.plan(robot):
-                        # action not possible and couldn't find a new plan -> deadlocked, no action
-                        continue
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
                 self.perform_action(robot)
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
