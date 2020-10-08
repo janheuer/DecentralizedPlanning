@@ -65,8 +65,31 @@ nextto(P2, (-DX, -DY), P) :- nexttoSt(P, (DX,DY), P2).
 % from the starting positions the robots can move up
 nextto((X,Y), (0,-1), (X,Y-1)) :- start((X,Y)), highway((X,Y-1)).
 
+
+% special partial lanes for first row of instance
+% enables movement onto pickingstations
+% partialWay(Y,XS,XE) - Y: y-coordinate of the lane, XS: start x-coordinate, XE: end x-coordinate,
+
+partialWay(1,1,XE) :- lane(1,u), way(XE,1,v).
+partialWay(1,XS,XE) :- way(XS,N,v), way(XE,N+1,v).
+
+% partialLane(Y,XS,XE,D) - same arguments as partialWay, but with added D: direction
+% first partial lane goes to the right
+partialLane(1,1,XE,r) :- partialWay(1,1,XE).
+% the other lanes alternate between right and left
+partialLane(1,XS,XE,l) :- partialWay(1,XS,XE), partialLane(1,_,XS,r).
+partialLane(1,XS,XE,r) :- partialWay(1,XS,XE), partialLane(1,_,XS,l).
+
+% create nextto atoms according to partialLane
+nextto((AX,Y),( 1,0),(BX,Y)) :- partialLane(Y,XS,XE,r), node((AX,Y)), node((BX,Y)), XS <= AX, BX <= XE, AX-BX = -1.
+nextto((AX,Y),(-1,0),(BX,Y)) :- partialLane(Y,XS,XE,l), node((AX,Y)), node((BX,Y)), XS <= BX, AX <= XE, AX-BX =  1.
+
+
 #show time/1.
 #show init/2.
 #show nextto/3.
 %#show storage/1.
 %#show lane/2.
+%#show way/3.
+%#show partialWay/3.
+%#show partialLane/4.
