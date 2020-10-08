@@ -205,9 +205,9 @@ init(object(shelf,16),value(at,(10,5))).
 init(object(robot,1),value(at,(1,7))). 
 init(object(robot,2),value(at,(2,7))). 
 init(object(robot,3),value(at,(3,7))). 
-init(object(robot,4),value(at,(4,7))). 
 init(object(robot,5),value(at,(5,7))). 
-init(object(product,1),value(on,(3,10))). 
+init(object(robot,4),value(at,(4,7))). 
+init(object(product,1),value(on,(16,10))). 
 init(object(order,1),value(line,(1,1))). 
 init(object(product,2),value(on,(8,10))). 
 init(object(order,2),value(line,(2,1))). 
@@ -220,8 +220,8 @@ init(object(order,5),value(line,(5,1))).
 nextto((1,7),(0,-1),(1,6)). 
 nextto((2,7),(0,-1),(2,6)). 
 nextto((3,7),(0,-1),(3,6)). 
-nextto((4,7),(0,-1),(4,6)). 
 nextto((5,7),(0,-1),(5,6)). 
+nextto((4,7),(0,-1),(4,6)). 
 nextto((6,4),(-1,0),(5,4)). 
 nextto((11,4),(-1,0),(10,4)). 
 nextto((6,5),(-1,0),(5,5)). 
@@ -333,8 +333,8 @@ nextto((10,7),(-1,0),(9,7)).
 nextto((11,7),(-1,0),(10,7)). 
 nextto((2,7),(-1,0),(1,7)). 
 nextto((3,7),(-1,0),(2,7)). 
-nextto((4,7),(-1,0),(3,7)). 
 nextto((5,7),(-1,0),(4,7)). 
+nextto((4,7),(-1,0),(3,7)). 
 nextto((1,6),(1,0),(2,6)). 
 nextto((2,6),(1,0),(3,6)). 
 nextto((3,6),(1,0),(4,6)). 

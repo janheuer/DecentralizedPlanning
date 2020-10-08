@@ -159,10 +159,10 @@ init(object(shelf,16), value(at,(10,5))).
 init(object(robot,1), value(at,(1,7))).
 init(object(robot,2), value(at,(2,7))).
 init(object(robot,3), value(at,(3,7))).
-init(object(robot,4), value(at,(4,7))).
 init(object(robot,5), value(at,(5,7))).
+init(object(robot,4), value(at,(4,7))).
 
-init(object(product,1),value(on,(3,10))).
+init(object(product,1),value(on,(16,10))).
 init(object(order,1),value(line,(1,1))).
 init(object(order,1),value(pickingStation,1)).
 
