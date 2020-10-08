@@ -33,6 +33,7 @@ storage(P) :- node(P), not highway(P), not station(P, _).
 way(Y, h) :- highway((X,Y)), storage((X,Y+1)), storage((X,Y-1)).
 way(X, v) :- highway((X,Y)), storage((X+1,Y)), storage((X-1,Y)).
 way(X, v) :- highway((X,Y)), not node((X+1,Y)), storage((X-1,Y)). % Special case for the last lane at the right edge
+way(Y, h) :- highway((X,Y)), storage((X,Y-1)), start((X,Y+1)). % special case for last lane above start positions
 way(Y, h) :- highway((X,Y)), not node((X,Y+1)). % bottom edge
 
 % Put the horizontal lanes into an order from top to bottom
