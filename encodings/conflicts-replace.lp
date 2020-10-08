@@ -22,8 +22,8 @@ predicted(T+1, R, (PX+DX, PY+DY)) :- position((PX,PY),R,T), move((DX,DY),R,T+1).
 conflict(T, R1, R2, P) :- predicted(T, R1, P), predicted(T, R2, P), R1 < R2.
 
 % Check if waiting causes another conflict
-conflict(T, R1, R2, P) :- predicted(T, R1, P), position(R2, P, T-1), waits(R2,T).
-conflict(T, R1, R2, P) :- predicted(T, R1, P), position(R2, P, T-1), action(R2,T).
+conflict(T, R1, R2, P) :- predicted(T, R1, P), position(P,R2,T-1), waits(R2,T).
+conflict(T, R1, R2, P) :- predicted(T, R1, P), position(P,R2,T-1), action(R2,T).
 
 
 waits(R,T) :- conflict(T, R, _, _).

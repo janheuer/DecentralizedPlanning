@@ -1275,7 +1275,7 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
     def solve_conflicts(self, model):
         # add wait actions to the robots according to the model
         for atom in model.symbols(shown=True):
-            if atom.name == "wait":
+            if atom.name == "waits":
                 rid = atom.arguments[0].number
                 for robot in self.robots:
                     if robot.id == rid:
@@ -1290,7 +1290,7 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
         for robot in self.robots:
             # current position
             # self.t has to be decreased by 1
-            self.conflict_prg.add("base", [], "pos((" + str(robot.pos[0]) + "," + str(robot.pos[1]) + ")," +
+            self.conflict_prg.add("base", [], "position((" + str(robot.pos[0]) + "," + str(robot.pos[1]) + ")," +
                                   str(robot.id) + "," + str(self.t - 1) + ").")
             # add next action
             if robot.next_action.name == "move":
@@ -1415,8 +1415,9 @@ if __name__ == "__main__":
                                                     args.domain, not args.nomodel, args.verbose, verbose_out,
                                                     benchmark, False, args.Highways, args.timeout, clingo_arguments)
         else:
-            print("b-domain not yet supported for traffic strategy", file=sys.stderr)
-            sys.exit(0)
+            pathfind = PathfindDecentralizedTraffic(args.instance, "./encodings/pathfindPrioritized.lp",
+                                                    args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                    benchmark, False, args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'centralized':
         # TODO create centralized pathfind object + modifications benchmark timing for centralized
         print("centralized strategy not yet supported", file=sys.stderr)
