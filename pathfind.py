@@ -1252,6 +1252,82 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
             print("Tpl=" + str(self.t) + ",", file=sys.stderr, end='')  # Total plan length
 
 
+class PathfindDecentralizedTraffic(PathfindDecentralized):
+    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
+                 verbose_out: TextIO, benchmark: bool, external: bool, highways: bool, timeout: int,
+                 clingo_arguments: List[str]) -> None:
+        self.conflict_prg = None
+        self.conflict_encoding = "./encodings/conflicts-replace.lp"
+        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
+                         timeout, clingo_arguments)
+
+    def init_robot(self, id: int, x: int, y: int) -> None:
+        if self.benchmark:
+            ts: float = time()
+        self.robots.append(Robot(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+                                 self.highwaysFlag, self.clingo_arguments))
+        if self.benchmark:
+            tf: float = time()
+            t: float = tf - ts
+            self.ground_times.append(t)
+            print("Igt=%s," % t, file=sys.stderr, end='')  # Init Ground time
+
+    def solve_conflicts(self, model):
+        # add wait actions to the robots according to the model
+        for atom in model.symbols(shown=True):
+            if atom.name == "waits":
+                rid = atom.arguments[0].number
+                for robot in self.robots:
+                    if robot.id == rid:
+                        self.add_wait(robot)
+
+    def find_conflicts(self):
+        # load encoding which computes conflicts and solves them by adding wait actions
+        self.conflict_prg = clingo.Control(self.clingo_arguments)
+        self.conflict_prg.load(self.conflict_encoding)
+
+        # add inputs to the program
+        for robot in self.robots:
+            # current position
+            # self.t has to be decreased by 1
+            self.conflict_prg.add("base", [], "position((" + str(robot.pos[0]) + "," + str(robot.pos[1]) + ")," +
+                                  str(robot.id) + "," + str(self.t - 1) + ").")
+            # add next action
+            if robot.next_action.name == "move":
+                self.conflict_prg.add("base", [], "move((" + str(robot.next_action.arguments[0].arguments[0].number) +
+                                      "," + str(robot.next_action.arguments[0].arguments[1].number) + ")," +
+                                      str(robot.id) + "," + str(self.t) + ").")
+            # if the next action is not a move it is not necessary to know what action it is
+            # (as the encoding only needs to know whether a robot moves or not)
+            else:
+                self.conflict_prg.add("base", [], "action(" + str(robot.id) + "," + str(self.t) + ").")
+
+        # find and solve conflicts
+        self.conflict_prg.ground([("base", [])])
+        ret = self.conflict_prg.solve(on_model=self.solve_conflicts)
+        if not ret.satisfiable:
+            print("conflict_encoding could not be satisfied", file=sys.stderr)
+            sys.exit(0)
+
+    def run(self):
+        while self.orders != [] or self.orders_in_delivery != []:
+            if self.timeout < time() - self.start_time and self.timeout != 0:
+                print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
+                sys.exit(0)
+            self.t += 1
+            # find and solve all conflicts for the current timestep
+            self.find_conflicts()
+            # perform all actions
+            for robot in self.robots:
+                self.perform_action(robot)
+
+        if self.domain == "m":
+            self.t -= 1
+
+        if self.benchmark:
+            print("Tpl=" + str(self.t) + ",", file=sys.stderr, end='')  # Total plan length
+
+
 if __name__ == "__main__":
     # command line arguments
     parser = argparse.ArgumentParser(description="A program for decentralized planning in the asprilo framework",
@@ -1264,7 +1340,7 @@ if __name__ == "__main__":
                         help="use benchmark output (possible verbose output will be redirected to stdout)",
                         default=False, action="store_true")
     parser.add_argument("-s", "--strategy", help="conflict solving strategy to be used (default: sequential)",
-                        choices=['sequential', 'shortest', 'crossing', 'prioritized', 'centralized'],
+                        choices=['sequential', 'shortest', 'crossing', 'prioritized', 'traffic', 'centralized'],
                         default='sequential', type=str)
     parser.add_argument("-e", "--external", help="enables use of external atoms (only for sequential, shortest and "
                                                  "crossing strategy)",
@@ -1324,12 +1400,24 @@ if __name__ == "__main__":
             print("option --external ignored for prioritized strategy", file=sys.stderr)
         if args.domain == "m":
             pathfind = PathfindDecentralizedPrioritized(args.instance, "./encodings/pathfindPrioritized-m.lp",
-                                                       args.domain, not args.nomodel, args.verbose, verbose_out,
-                                                       benchmark, False, args.Highways, args.timeout, clingo_arguments)
+                                                        args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                        benchmark, False, args.Highways, args.timeout, clingo_arguments)
         else:
             pathfind = PathfindDecentralizedPrioritized(args.instance, "./encodings/pathfindPrioritized.lp",
                                                         args.domain, not args.nomodel, args.verbose, verbose_out,
                                                         benchmark, False, args.Highways, args.timeout, clingo_arguments)
+    elif args.strategy == 'traffic':
+        print("traffic strategy needs special instance in order to work correctly", file=sys.stderr)
+        if args.external:
+            print("option --external ignored for traffic strategy", file=sys.stderr)
+        if args.domain == "m":
+            pathfind = PathfindDecentralizedTraffic(args.instance, "./encodings/pathfindPrioritized-m.lp",
+                                                    args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                    benchmark, False, args.Highways, args.timeout, clingo_arguments)
+        else:
+            pathfind = PathfindDecentralizedTraffic(args.instance, "./encodings/pathfindPrioritized.lp",
+                                                    args.domain, not args.nomodel, args.verbose, verbose_out,
+                                                    benchmark, False, args.Highways, args.timeout, clingo_arguments)
     elif args.strategy == 'centralized':
         # TODO create centralized pathfind object + modifications benchmark timing for centralized
         print("centralized strategy not yet supported", file=sys.stderr)
