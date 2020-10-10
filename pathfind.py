@@ -1376,6 +1376,13 @@ if __name__ == "__main__":
                         choices=["b", "m"])
     parser.add_argument("--debug", help="enables clingo warnings", default=False, action="store_true")
     args = parser.parse_args()
+
+    # TODO: update benchmarking for all strategies besides centralized
+    if args.benchmark and args.strategy != "centralized":
+        print("benchmarking currently only supported for centralized strategy", file=sys.stderr)
+        print("running without benchmark option instead", file=sys.stderr)
+        args.benchmark = False
+
     verbose_out: TextIO = sys.stderr if not args.benchmark else sys.stdout
 
     clingo_arguments = []
@@ -1386,12 +1393,6 @@ if __name__ == "__main__":
         encoding = "./encodings/pathfindDecentralized-m.lp"
     else:
         encoding = "./encodings/pathfindDecentralized.lp"
-
-    # TODO: update benchmarking for all strategies besides centralized
-    if args.benchmark and args.strategy != "centralized":
-        print("benchmarking currently only supported for centralized strategy", file=sys.stderr)
-        print("running without benchmark option instead", file=sys.stderr)
-        args.benchmark = False
 
     # Initialize the Pathfind object
     if args.strategy == 'sequential':
