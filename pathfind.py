@@ -309,6 +309,7 @@ class PathfindDecentralized(Pathfind):
         """Assign the first possible order to the robot
         Return True/False if an order was assigned/wasn't assigned
         """
+
         # possible_shelves is used to check if an order can be completed
         possible_shelves = []
         o = -1
@@ -412,6 +413,26 @@ class PathfindDecentralized(Pathfind):
         self.print_verbose("r" + str(r.id) + " waits")
         r.wait()
         self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
+        
+    def check_conflicts(self):
+        """Finds all conflicts between robots
+        and returns a list of conflicts
+        """
+        conflicts = []
+        self.prg = clingo.Control(self.clingo_arguments)
+        self.prg.load("./encodings/conflicts.lp")
+        for r in self.robots:
+            print("r" + str(r.id) + " at " + str(r.pos))
+            if r.next_action != clingo.Function("", []):
+                self.prg.add("base", [], str(r.next_action) + ".")
+            self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
+        self.prg.ground([("base", [])])
+    
+        with self.prg.solve(yield_=True) as h:
+            for m in h:
+                for atom in m.symbols(shown=True):
+                    conflicts.append(atom)
+        return conflicts
 
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
@@ -440,17 +461,36 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         When robots have completed an order, they get assigned a new order
         Finishes when all orders are delivered
         """
+        
+        self.resolved = True 
+        
         while self.orders != [] or self.orders_in_delivery != []:
             if self.timeout < time() - self.start_time and self.timeout != 0:
                 print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
                 sys.exit(0)
             self.t += 1
+            
+            
+            
+            self.resolved = True 
+            while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
+                self.resolved = False
+                conflicts = super().check_conflicts()
+            
+                for conflict in conflicts:
+                    if conflict.name == "conflict" or conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
+                        for r in self.robots:
+                            if r.id == conflict.arguments[0].number:
+                                r.update_state(self.state)
+                                self.resolved = True
+                                if not self.plan(r):
+                                    super().add_wait(r)
+                    if conflict.name == "conflictW" or conflict.name == "conflictWO" or conflict.name == "conflictWOConf": # if another robots waits or performs an action the robot should wait
+                        for r in self.robots:
+                            if r.id == conflict.arguments[0].number:
+                                super().add_wait(r)
+            
             for robot in self.robots:
-                robot.update_state(self.state)
-                if not robot.action_possible():
-                    if not self.plan(robot):
-                        # action not possible and couldn't find a new plan -> deadlocked, no action
-                        continue
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
                 self.perform_action(robot)
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
@@ -487,8 +527,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         but only the robot for which the new plan adds less time uses the new plan
         For conflicts where only one robot moves the other robot waits
         """
-        # self.to_check is a list of robots which still have to be checked for conflicts
-        self.to_check = []
+        self.resolved = True 
 
         # setup variables to express realtime in the benchmark
         if self.benchmark:
@@ -519,84 +558,87 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
             for r in self.robots:
                 self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
 
-            # initially all robots have to be checked
-            self.to_check = list(self.robots)
-            while self.to_check != []:
-                r1 = self.to_check.pop(0)  # get first robot and remove from list
-                # check for possible conflicts with every other robot
-                for r2 in self.robots:
-                    if r1.id == r2.id:
-                        continue
-                    # robots want to move onto same position or robots want to swap positions
-                    if (r1.next_pos == r2.next_pos) or ((r1.next_pos == r2.pos) and (r1.pos == r2.next_pos)):
-                        if r1.next_pos == r2.next_pos:
-                            self.print_verbose(
-                                "conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(self.t))
-                        else:
-                            self.print_verbose(
-                                "swapping conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(
-                                    self.t))
 
-                        # check if both robots move
-                        if (r1.next_action.name == "move") and (r2.next_action.name == "move"):
-                            # both robots move -> both have to find a new plan
-                            # self.replan returns added length of new plan
-                            if self.benchmark:
-                                if rltime[r1.id - 1] > rltime[r2.id - 1]:
-                                    rltime[r2.id - 1] = rltime[r1.id - 1]
-                                else:
-                                    rltime[r1.id - 1] = rltime[r2.id - 1]
-                                r1start = time()
-                            dr1 = self.replan(r1, 1)
-                            if self.benchmark:
-                                r1end = time()
-                                rltime[r1.id - 1] += r1end - r1start
-                                r2start = time()
-                            dr2 = self.replan(r2, 2)
-                            if self.benchmark:
-                                r2end = time()
-                                rltime[r2.id - 1] += r2end - r2start
-                                if rltime[r1.id - 1] > rltime[r2.id - 1]:
-                                    rltime[r2.id - 1] = rltime[r1.id - 1]
-                                else:
-                                    rltime[r1.id - 1] = rltime[r2.id - 1]
+            self.resolved = True 
+            while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
+                self.resolved = False
+                conflicts = super().check_conflicts()
+            
+            
+                for conflict in conflicts: # Conflict detection
+                    if conflict.name == "conflict" or conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
+                        for r1 in self.robots:
+                            if r1.id == conflict.arguments[0].number:
+                                for r2 in self.robots:
+                                    if r2.id == conflict.arguments[1].number:
+                                        if conflict.name == "conflict":
+                                            self.print_verbose(
+                                                "conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(self.t))
+                                        elif conflict.name == "swap":
+                                            self.print_verbose(
+                                                "swapping conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(
+                                                    self.t))
+                                        
+                                        # both robots move -> both have to find a new plan
+                                        # self.replan returns added length of new plan
+                                        if self.benchmark:
+                                            if rltime[r1.id - 1] > rltime[r2.id - 1]:
+                                                rltime[r2.id - 1] = rltime[r1.id - 1]
+                                            else:
+                                                rltime[r1.id - 1] = rltime[r2.id - 1]
+                                            r1start = time()
+                                        dr1 = self.replan(r1, 1)
+                                        if self.benchmark:
+                                            r1end = time()
+                                            rltime[r1.id - 1] += r1end - r1start
+                                            r2start = time()
+                                        dr2 = self.replan(r2, 2)
+                                        if self.benchmark:
+                                            r2end = time()
+                                            rltime[r2.id - 1] += r2end - r2start
+                                            if rltime[r1.id - 1] > rltime[r2.id - 1]:
+                                                rltime[r2.id - 1] = rltime[r1.id - 1]
+                                            else:
+                                                rltime[r1.id - 1] = rltime[r2.id - 1]
+            
+                                        # choose which robot uses new plan
+                                        # case 1: both robots are deadlocked
+                                        if (dr1 == -1) and (dr2 == -1):
+                                            self.print_verbose("both robots deadlocked")
+                                            # both have to use new plan (which causes them to wait next timestep)
+                                            self.change_plan(r1)
+                                            self.change_plan(r2)
+            
+                                        # case 2: r1 is deadlocked or the new plan of r1 adds more time
+                                        # here dr2 can still be -1 -> then dr2<=dr1 would be true
+                                        # therefore the condition dr2!=-1 is needed
+                                        elif (dr1 == -1) or (dr2 <= dr1 and dr2 != -1):
+                                            self.print_verbose(
+                                                "r" + str(r1.id) + " deadlocked or dr" + str(r2.id) + "<=dr" + str(r1.id))
+                                            # r1 continues using the old plan
+                                            r1.use_old_plan()
+                                            # r2 uses the new plan
+                                            self.change_plan(r2)
+            
+                                        # case 3: r2 is deadlocked or the new plan of r2 adds more time
+                                        elif (dr2 == -1) or (dr1 < dr2):
+                                            self.print_verbose(
+                                                "r" + str(r2.id) + " deadlocked or dr" + str(r1.id) + "<=dr" + str(r2.id))
+                                            # r1 uses new plan
+                                            self.change_plan(r1)
+                                            # r2 continues using the old plan
+                                            r2.use_old_plan()
+            
+                                        
+                    elif conflict.name == "conflictW" or conflict.name == "conflictWO": # if another robots waits or performs an action the robot should wait
+                        for r in self.robots:
+                            if r.id == conflict.arguments[0].number:
+                                self.print_verbose("r" + str(conflict.arguments[1]) + " delivers")
+                                self.add_wait(r)
 
-                            # choose which robot uses new plan
-                            # case 1: both robots are deadlocked
-                            if (dr1 == -1) and (dr2 == -1):
-                                self.print_verbose("both robots deadlocked")
-                                # both have to use new plan (which causes them to wait next timestep)
-                                self.change_plan(r1)
-                                self.change_plan(r2)
 
-                            # case 2: r1 is deadlocked or the new plan of r1 adds more time
-                            # here dr2 can still be -1 -> then dr2<=dr1 would be true
-                            # therefore the condition dr2!=-1 is needed
-                            elif (dr1 == -1) or (dr2 <= dr1 and dr2 != -1):
-                                self.print_verbose(
-                                    "r" + str(r1.id) + " deadlocked or dr" + str(r2.id) + "<=dr" + str(r1.id))
-                                # r1 continues using the old plan
-                                r1.use_old_plan()
-                                # r2 uses the new plan
-                                self.change_plan(r2)
 
-                            # case 3: r2 is deadlocked or the new plan of r2 adds more time
-                            elif (dr2 == -1) or (dr1 < dr2):
-                                self.print_verbose(
-                                    "r" + str(r2.id) + " deadlocked or dr" + str(r1.id) + "<=dr" + str(r2.id))
-                                # r1 uses new plan
-                                self.change_plan(r1)
-                                # r2 continues using the old plan
-                                r2.use_old_plan()
-
-                        else:
-                            # only one robot moves
-                            if r1.next_action.name == "move":
-                                self.print_verbose("r" + str(r2.id) + " delivers")
-                                self.add_wait(r1)
-                            elif r2.next_action.name == "move":
-                                self.print_verbose("r" + str(r1.id) + " delivers")
-                                self.add_wait(r2)
+            
 
             if self.benchmark:
                 self.real_time += max(rltime)
@@ -648,14 +690,11 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         and marks the new next_pos of the robot
         """
         robot.use_new_plan()
-        if robot not in self.to_check:
-            self.to_check.append(robot)
+        self.resolve = True
         self.state[robot.next_pos[0] - 1][robot.next_pos[1] - 1] = 0
 
     def add_wait(self, r):
         super().add_wait(r)
-        if r not in self.to_check:
-            self.to_check.append(r)
 
 
 class PathfindDecentralizedCrossing(PathfindDecentralized):
@@ -686,7 +725,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         This method is only used for swapping conflict, all other conflicts
         are solved by making one of the robots wait"""
         # keep track of which robots we still have to check for conflicts
-        self.to_check = []
+
+        self.resolved = True
 
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
@@ -706,19 +746,25 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
             for robot in self.robots:
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0
 
-            # first check for swapping conflicts and solve them
-            self.to_check = list(self.robots)
-            while self.to_check != []:
-                r1 = self.to_check.pop(0)
-
-                for r2 in self.robots:
-                    if r1.id == r2.id:
-                        continue
-
-                    if (r1.next_pos == r2.pos) and (r1.pos == r2.next_pos):
+            self.resolved = True 
+            while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
+                self.resolved = False
+                conflicts = super().check_conflicts()
+            
+                for conflict in conflicts:
+                    if conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
+                        r1 = 0
+                        r2 = 0
+                        for r in self.robots:
+                            if r.id == conflict.arguments[0].number:
+                                r1 = r
+                            if r.id == conflict.arguments[1].number:
+                                r2 = r
+                        
                         self.print_verbose(
                             "swapping conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(self.t))
                         # if r1 isn't in a conflict but r2 is already dodging another robot
+                        self.resolved = False
                         if (not r1.in_conflict) and r2.dodging and (not r1.replanned):
                             # r1 will "copy" the dodging from r2 but has to make an additional step to dodge r2
                             self.add_nested_crossroad(r1, r2)
@@ -772,16 +818,17 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                                 self.add_crossroad(r1, r2)
                             else:
                                 self.add_crossroad(r2, r1)
-
-            # second check for non swapping conflicts and solve them by waiting
-            self.to_check = list(self.robots)
-            while self.to_check != []:
-                r1 = self.to_check.pop(0)
-                for r2 in self.robots:
-                    if r1.id == r2.id:
-                        continue
-
-                    if r1.next_pos == r2.next_pos:
+                                
+                    else: # if another robots waits or performs an action the robot should wait
+                        r1 = 0
+                        r2 = 0
+                        for r in self.robots:
+                            if r.id == conflict.arguments[0].number:
+                                r1 = r
+                            if r.id == conflict.arguments[1].number:
+                                r2 = r
+                        
+                        
                         self.print_verbose(
                             "conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(self.t))
                         # the robot which moves and is not already in a conflict will wait
@@ -799,6 +846,11 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                             else:
                                 self.add_wait(r2)
 
+
+
+
+            # first check for swapping conflicts and solve them
+            
             if self.timeout < time() - self.start_time and self.timeout != 0:
                 print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
                 sys.exit(0)
@@ -1121,8 +1173,7 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         Update position, robot has to be checked for possible new conflicts"""
         # add the crossroad to the model, also generates the returning
         r.use_crossroad()
-        if r not in self.to_check:
-            self.to_check.append(r)
+        self.resolved = True
         self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
 
     def block_crossings(self, r1, r2):
@@ -1195,8 +1246,6 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
 
     def add_wait(self, r):
         super().add_wait(r)
-        if r not in self.to_check:
-            self.to_check.append(r)
 
 
 class PathfindDecentralizedPrioritized(PathfindDecentralized):
@@ -1422,4 +1471,3 @@ if __name__ == "__main__":
         pathfind.benchmarker.output({"plan_length": plan_length, "run_time": run_time}, "main")
     else:
         pathfind.run()
-

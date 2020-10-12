@@ -201,12 +201,12 @@ class Robot(object):
                 self.t -= 1
                 self.get_next_action()
                 self.t += 1
-                return "wait", []
+                return "wait", [self.id]
 
     def wait(self):
         """Make a wait action in the next action"""
         self.waiting = True
-        self.next_action = clingo.Function("wait", [])
+        self.next_action = clingo.Function("wait", [self.id])
         self.next_pos = list(self.pos)
 
     def set_order(self, order, available_shelves):
