@@ -471,17 +471,7 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 sys.exit(0)
             self.t += 1
             print("Now starting: " + str(self.t))
-            
-            for robot in self.robots:
-                print("r" + str(robot.id) + " at " + str(robot.pos))
-                for r2 in self.robots:
-                    if robot.pos == r2.pos and robot != r2:
-                        print("AAA")
-                        print("AAA")
-                        print("AAA")
-                        print("AAA")
-                        print("AAA")
-            
+
             self.resolved = True 
             while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
