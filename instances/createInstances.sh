@@ -9,7 +9,7 @@ do
 done
 
 # create traffic instances
-for file in ./original/11x7/*.lp
+for file in ./original/11x7/*.lp ./original/16x10/*.lp
 do
     newfile="./traffic/${file#"./original/"}"
     clingo --out-atomf='%s.' $file createTraffic.lp | head -n 5 | tail -n 1 > $newfile
