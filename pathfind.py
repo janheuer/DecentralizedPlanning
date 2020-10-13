@@ -472,23 +472,20 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
             self.t += 1
 
             
-            self.resolved = True 
-            while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
-                self.resolved = False
-                for robot in self.robots:
-                    robot.update_state(self.state)
-                    for conflict in self.check_conflicts(robot):
-                        if conflict.name == "swap" or conflict.name == "conflict":
-                            if robot.id == conflict.arguments[0].number or robot.id == conflict.arguments[1].number :
-                                if not self.plan(robot):
-                                    continue
-                        if conflict.name == "conflictW":
-                                robot.update_state(self.state)
-                                if not self.plan(robot):
-                                    continue
-                    self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
-                    self.perform_action(robot)
-                    self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
+            for robot in self.robots:
+                robot.update_state(self.state)
+                for conflict in self.check_conflicts(robot):
+                    if conflict.name == "swap" or conflict.name == "conflict":
+                        if robot.id == conflict.arguments[0].number or robot.id == conflict.arguments[1].number :
+                            if not self.plan(robot):
+                                continue
+                    if conflict.name == "conflictW":
+                            robot.update_state(self.state)
+                            if not self.plan(robot):
+                                continue
+                self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
+                self.perform_action(robot)
+                self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
             
 
         if self.domain == "m":
