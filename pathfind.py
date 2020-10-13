@@ -470,21 +470,19 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
                 sys.exit(0)
             self.t += 1
-            print("Now starting: " + str(self.t))
 
+            
             self.resolved = True 
             while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
                 for robot in self.robots:
+                    robot.update_state(self.state)
                     for conflict in self.check_conflicts(robot):
                         if conflict.name == "swap" or conflict.name == "conflict":
-                            print(conflict)
                             if robot.id == conflict.arguments[0].number or robot.id == conflict.arguments[1].number :
-                                robot.update_state(self.state)
                                 if not self.plan(robot):
                                     continue
                         if conflict.name == "conflictW":
-                            if robot.id == conflict.arguments[0].number:
                                 robot.update_state(self.state)
                                 if not self.plan(robot):
                                     continue

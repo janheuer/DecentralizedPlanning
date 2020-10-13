@@ -56,7 +56,7 @@ class Robot(object):
         self.old_plan_length = self.plan_length
 
         self.model = []
-
+        
         if self.external:
             # Assign externals before solving
             self.prg.assign_external(clingo.Function("start", [(self.start[0], self.start[1]), self.id]), False)
@@ -79,6 +79,9 @@ class Robot(object):
             self.prg = clingo.Control(self.clingo_arguments)
             self.prg.load(self.encoding)
             self.prg.load(self.instance)
+            
+
+            
             self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
             if self.pickupdone:
                 self.prg.add("base", [], "pickup(" + str(self.id) + ",0).")
@@ -106,7 +109,7 @@ class Robot(object):
 
         self.start = list(self.pos)
         self.plan_finished = False
-
+        
         # Solving; Due to the #minimize{}. the last model we find will be optimal
         found_model = False
         with self.prg.solve(yield_=True) as h:
