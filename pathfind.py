@@ -422,9 +422,8 @@ class PathfindDecentralized(Pathfind):
         self.prg = clingo.Control(self.clingo_arguments)
         self.prg.load("./encodings/conflicts.lp")
         for r in self.robots:
-            print("r" + str(r.id) + " at " + str(r.pos))
             if r.next_action != clingo.Function("", []):
-                self.prg.add("base", [], str(r.next_action) + ".")
+                self.prg.add("base", [], str(r.next_action) + ").")
             else:
                 self.prg.add("base", [], str("waits(" + str(r.id) + ")."))
             self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
@@ -471,42 +470,68 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
                 sys.exit(0)
             self.t += 1
+            print("Now starting: " + str(self.t))
             
-            for r in self.robots:
-                self.state[r.pos[0] - 1][r.pos[1] - 1] = 1
-            # mark all new positions
-            for r in self.robots:
-                self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
+            for robot in self.robots:
+                print("r" + str(robot.id) + " at " + str(robot.pos))
+                for r2 in self.robots:
+                    if robot.pos == r2.pos and robot != r2:
+                        print("AAA")
+                        print("AAA")
+                        print("AAA")
+                        print("AAA")
+                        print("AAA")
             
             self.resolved = True 
             while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
-                conflicts = super().check_conflicts()
-                for r in self.robots:
-                    self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
-                for conflict in conflicts:
-                    if conflict.name == "conflict" or conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
-                        for r in self.robots:
-                            if r.id == conflict.arguments[0].number:
-                                r.update_state(self.state)
-                                self.resolved = True
-                                if not self.plan(r):
-                                    super().add_wait(r)
-                    if conflict.name == "conflictW" or conflict.name == "conflictWO" or conflict.name == "conflictWOConf": # if another robots waits or performs an action the robot should wait
-                        for r in self.robots:
-                            if r.id == conflict.arguments[0].number:
-                                super().add_wait(r)
+                for robot in self.robots:
+                    for conflict in self.check_conflicts(robot):
+                        if conflict.name == "swap" or conflict.name == "conflict":
+                            print(conflict)
+                            if robot.id == conflict.arguments[0].number or robot.id == conflict.arguments[1].number :
+                                robot.update_state(self.state)
+                                if not self.plan(robot):
+                                    continue
+                        if conflict.name == "conflictW":
+                            if robot.id == conflict.arguments[0].number:
+                                robot.update_state(self.state)
+                                if not self.plan(robot):
+                                    continue
+                    self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
+                    self.perform_action(robot)
+                    self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
             
-            for robot in self.robots:
-                self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
-                self.perform_action(robot)
-                self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
 
         if self.domain == "m":
             self.t -= 1
 
         return self.t
 
+            
+    def check_conflicts(self, robot):
+        """Finds all conflicts between robots
+        and returns a list of conflicts
+        """
+        conflicts = []
+        self.prg = clingo.Control(self.clingo_arguments)
+        self.prg.load("./encodings/conflicts.lp")
+        for r in self.robots:
+            if r != robot:
+                self.prg.add("base", [], str("waits(" + str(r.id) + ")."))
+            else: 
+                if r.next_action != clingo.Function("", []):
+                    self.prg.add("base", [], str(r.next_action) + ".")
+            self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
+        self.prg.ground([("base", [])])
+    
+        with self.prg.solve(yield_=True) as h:
+            for m in h:
+                for atom in m.symbols(shown=True):
+                    conflicts.append(atom)
+        return conflicts
+        
+        
 
 class PathfindDecentralizedShortest(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
