@@ -41,6 +41,7 @@ conflictWO(R1, R2, P) :- predicted(R1, P), position(R2, P), waitsOutW(R2).
 conflictWO(R1, R2, P) :- predicted(R1, P), position(R2, P), waitsOutWO(R2).
 
 conflictWOConf(R1, R2, P) :- predicted(R1, P), position(R2, P), waitsOut(R2).
+conflictWOConf(R1, R2, P) :- predicted(R1, P), position(R2, P), waitsOutWOConf(R2).
 
 
 

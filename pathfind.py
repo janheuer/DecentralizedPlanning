@@ -425,6 +425,8 @@ class PathfindDecentralized(Pathfind):
             print("r" + str(r.id) + " at " + str(r.pos))
             if r.next_action != clingo.Function("", []):
                 self.prg.add("base", [], str(r.next_action) + ".")
+            else:
+                self.prg.add("base", [], str("waits(" + str(r.id) + ")."))
             self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
         self.prg.ground([("base", [])])
     
@@ -470,13 +472,18 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 sys.exit(0)
             self.t += 1
             
-            
+            for r in self.robots:
+                self.state[r.pos[0] - 1][r.pos[1] - 1] = 1
+            # mark all new positions
+            for r in self.robots:
+                self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
             
             self.resolved = True 
             while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
                 conflicts = super().check_conflicts()
-            
+                for r in self.robots:
+                    self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
                 for conflict in conflicts:
                     if conflict.name == "conflict" or conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
                         for r in self.robots:
