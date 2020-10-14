@@ -423,9 +423,9 @@ class PathfindDecentralized(Pathfind):
         self.prg.load("./encodings/conflicts.lp")
         for r in self.robots:
             if r.next_action != clingo.Function("", []):
-                self.prg.add("base", [], str(r.next_action) + ").")
+                self.prg.add("base", [], str(r.next_action) + ".")
             else:
-                self.prg.add("base", [], str("waits(" + str(r.id) + ")."))
+                self.prg.add("base", [], str("wait(" + str(r.id) + ")."))
             self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
         self.prg.ground([("base", [])])
     
@@ -524,6 +524,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
                  clingo_arguments: List[str]) -> None:
         if benchmark:
             self.benchmarker = Benchmarker("shortest", instance, result_path)
+        self.resolved = False
         super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, external, highways,
                          timeout, clingo_arguments)
 
@@ -575,15 +576,15 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
             for r in self.robots:
                 self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
 
-
             self.resolved = True 
-            while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
+            while self.resolved:  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
                 conflicts = super().check_conflicts()
-            
-            
-                for conflict in conflicts: # Conflict detection
-                    if conflict.name == "conflict" or conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
+
+                for conflict in conflicts:  # Conflict detection
+                    self.resolved = True
+                    if conflict.name == "conflict" or conflict.name == "swap":
+                        # if there is a conflict the robot with the lower ID needs to replan
                         for r1 in self.robots:
                             if r1.id == conflict.arguments[0].number:
                                 for r2 in self.robots:
@@ -645,17 +646,17 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
                                             self.change_plan(r1)
                                             # r2 continues using the old plan
                                             r2.use_old_plan()
-            
-                                        
-                    elif conflict.name == "conflictW" or conflict.name == "conflictWO": # if another robots waits or performs an action the robot should wait
+
+                    elif conflict.name in ["conflictW", "conflictWO"]:
+                        # if another robots waits or performs an action the robot should wait
                         for r in self.robots:
                             if r.id == conflict.arguments[0].number:
-                                self.print_verbose("r" + str(conflict.arguments[1]) + " delivers")
-                                self.add_wait(r)
-
-
-
-            
+                                for r2 in self.robots:
+                                    if r2.id == conflict.arguments[1].number:
+                                        if r2.shelf != -1:
+                                            self.add_wait(r)
+                                        else:
+                                            self.plan(r)
 
             if self.benchmark:
                 self.real_time += max(rltime)
