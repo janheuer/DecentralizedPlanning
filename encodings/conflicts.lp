@@ -35,7 +35,7 @@ conflict(R1, R2, P) :- predicted(R1, P), predicted(R2, P), move(_, R1), move(_, 
 swap(R1, R2) :- predicted(R1, P2), predicted(R2, P1), position(R1, P1), position(R2, P2), R1 < R2. 
 
 % Check if waiting causes another conflict
-conflictW(R1, R2, P) :- predicted(R1, P), position(R2, P), waits(R2).
+conflictW(R1, R2, P) :- predicted(R1, P), position(R2, P), wait(R2).
 conflictW(R1, R2, P) :- predicted(R1, P), position(R2, P), action(R2).
 conflictWO(R1, R2, P) :- predicted(R1, P), position(R2, P), waitsOutW(R2).
 conflictWO(R1, R2, P) :- predicted(R1, P), position(R2, P), waitsOutWO(R2).

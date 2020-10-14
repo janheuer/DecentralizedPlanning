@@ -425,7 +425,7 @@ class PathfindDecentralized(Pathfind):
             if r.next_action != clingo.Function("", []):
                 self.prg.add("base", [], str(r.next_action) + ").")
             else:
-                self.prg.add("base", [], str("waits(" + str(r.id) + ")."))
+                self.prg.add("base", [], str("wait(" + str(r.id) + ")."))
             self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
         self.prg.ground([("base", [])])
     
