@@ -1,3 +1,7 @@
+from benchmarker import solve
+
+from typing import List
+
 import clingo
 
 
@@ -48,6 +52,14 @@ class Robot(object):
         self.plan_length = -1
 
         self.next_action = clingo.Function("", [])
+
+    # TODO: add parameters 'benchmark' and 'benchmarker'
+    # TODO: use solve whenever a program is solved
+    def solve(self, prg: clingo.Control, type: str) -> List[clingo.Symbol]:
+        if self.benchmark:
+            return self.benchmarker.solve(prg, type)
+        else:
+            return solve(prg)
 
     def find_new_plan(self):
         """Makes the robot solve for a new plan and keeps the old plan saved
@@ -144,7 +156,7 @@ class Robot(object):
         self.get_next_action()
         self.t = 1
 
-    def solve(self):
+    def plan(self):
         """Finds a new plan and immediately uses it (unless there is a deadlock)"""
         found_model = self.find_new_plan()
         if found_model:
@@ -498,7 +510,7 @@ class RobotPrioritized(Robot):
         self.additional_inputs = []
         self.blocked_positions = []
 
-    def solve(self):
+    def plan(self):
         # similar to Robot.solve() / Robot.find_new_plan()
         # but needs to add the additional input to the program
         # and clear additional inputs after solving
