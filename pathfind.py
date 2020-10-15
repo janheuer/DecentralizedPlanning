@@ -160,7 +160,6 @@ class Pathfind(object):
     def run(self) -> int:
         pass
 
-    # TODO: use solve whenever a program is solved
     def solve(self, prg: clingo.Control, type: str) -> List[clingo.Symbol]:
         if self.benchmark:
             return self.benchmarker.solve(prg, type)
@@ -368,7 +367,6 @@ class PathfindDecentralized(Pathfind):
         causes the robot to replan, otherwise the plans the new order)
         """
         if robot.shelf == -1:  # robot doesn't have a order assigned
-            resolve = False
             if not self.assign_order(robot):  # try to assign a order
                 return False  # no order can be assigned
             if self.domain == "m":
@@ -378,7 +376,6 @@ class PathfindDecentralized(Pathfind):
                 self.print_verbose("robot" + str(robot.id) + " planning order id=" + str(robot.order[0]) + " product="
                                    + str(robot.order[1]) + " station=" + str(robot.order[2]) + " at t=" + str(self.t))
         else:
-            resolve = True
             self.print_verbose("robot" + str(robot.id) + " replanning at t=" + str(self.t))
 
         found_plan = robot.plan()
@@ -403,7 +400,6 @@ class PathfindDecentralized(Pathfind):
         """Finds all conflicts between robots
         and returns a list of conflicts
         """
-        conflicts = []
         self.prg = clingo.Control(self.clingo_arguments)
         self.prg.load("./encodings/conflicts.lp")
         for r in self.robots:
@@ -413,12 +409,8 @@ class PathfindDecentralized(Pathfind):
                 self.prg.add("base", [], str("wait(" + str(r.id) + ")."))
             self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
         self.prg.ground([("base", [])])
-    
-        with self.prg.solve(yield_=True) as h:
-            for m in h:
-                for atom in m.symbols(shown=True):
-                    conflicts.append(atom)
-        return conflicts
+
+        return self.solve(self.prg, "conflict")
 
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
@@ -441,8 +433,6 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         Finishes when all orders are delivered
         """
         
-        self.resolved = True 
-        
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
             
@@ -460,7 +450,6 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
                 self.perform_action(robot)
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
-            
 
         if self.domain == "m":
             self.t -= 1
@@ -471,7 +460,6 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         """Finds all conflicts between robots
         and returns a list of conflicts
         """
-        conflicts = []
         self.prg = clingo.Control(self.clingo_arguments)
         self.prg.load("./encodings/conflicts.lp")
         for r in self.robots:
@@ -482,12 +470,8 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                     self.prg.add("base", [], str(r.next_action) + ".")
             self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
         self.prg.ground([("base", [])])
-    
-        with self.prg.solve(yield_=True) as h:
-            for m in h:
-                for atom in m.symbols(shown=True):
-                    conflicts.append(atom)
-        return conflicts
+
+        return self.solve(self.prg, "conflict")
         
 
 class PathfindDecentralizedShortest(PathfindDecentralized):
@@ -626,7 +610,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         and marks the new next_pos of the robot
         """
         robot.use_new_plan()
-        self.resolve = True
+        self.resolved = True
         self.state[robot.next_pos[0] - 1][robot.next_pos[1] - 1] = 0
 
     def add_wait(self, r):
@@ -636,6 +620,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
 class PathfindDecentralizedCrossing(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
                  result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
+        self.resolved = False
         super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
                          clingo_arguments)
 
@@ -676,7 +661,7 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0
 
             self.resolved = True 
-            while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
+            while self.resolved:  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
                 conflicts = super().check_conflicts()
             
@@ -1212,7 +1197,7 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
 
     def solve_conflicts(self, model):
         # add wait actions to the robots according to the model
-        for atom in model.symbols(shown=True):
+        for atom in model:
             if atom.name == "waits":
                 rid = atom.arguments[0].number
                 for robot in self.robots:
@@ -1242,16 +1227,14 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
 
         # find and solve conflicts
         self.conflict_prg.ground([("base", [])])
-        ret = self.conflict_prg.solve(on_model=self.solve_conflicts)
-        if not ret.satisfiable:
-            print("conflict_encoding could not be satisfied", file=sys.stderr)
-            sys.exit(0)
+        return self.solve(self.conflict_prg, "conflict")
 
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
             # find and solve all conflicts for the current timestep
-            self.find_conflicts()
+            conflicts = self.find_conflicts()
+            self.solve_conflicts(conflicts)
             # perform all actions
             for robot in self.robots:
                 self.perform_action(robot)
