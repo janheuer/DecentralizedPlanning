@@ -56,7 +56,6 @@ class Robot(object):
 
         self.next_action = clingo.Function("", [])
 
-    # TODO: use solve whenever a program is solved
     def solve(self, prg: clingo.Control, type: str) -> List[clingo.Symbol]:
         if self.benchmark:
             return self.benchmarker.solve(prg, type)
@@ -123,21 +122,15 @@ class Robot(object):
 
         self.start = list(self.pos)
         self.plan_finished = False
-        
-        # Solving; Due to the #minimize{}. the last model we find will be optimal
-        found_model = False
-        with self.prg.solve(yield_=True) as h:
-            for m in h:
-                found_model = True
-                opt = m
-            if found_model:
-                for atom in opt.symbols(shown=True):
-                    self.model.append(atom)
-                    if atom.name == "chooseShelf":
-                        self.shelf = atom.arguments[0].number
-                    elif (atom.name == "putdown" and self.domain == "b") or \
-                         (atom.name == "pickup" and self.domain == "m"):
-                        self.plan_length = atom.arguments[1].number
+
+        self.model = self.solve(self.prg, "plan")
+        if self.model:
+            found_model = True
+            for atom in self.model:
+                if atom.name == "chooseShelf":
+                    self.shelf = atom.arguments[0].number
+                elif (atom.name == "putdown" and self.domain == "b") or (atom.name == "pickup" and self.domain == "m"):
+                    self.plan_length = atom.arguments[1].number
 
         if not found_model:
             self.plan_length = -1
@@ -304,6 +297,8 @@ class RobotCrossing(Robot):
         """Additional initialization for crossing strategy"""
         self.using_crossroad = False
         self.crossroad = None
+        self.cross_model = []
+        self.cross_length = -1
 
         self.in_conflict = False
         self.dodging = False
@@ -354,21 +349,14 @@ class RobotCrossing(Robot):
                 self.crossroad.add("base", [], "block((" + str(cross[0]) + ", " + str(cross[1]) + ")).")
             self.crossroad.ground([("base", []), ("noExternal", [self.id])])
 
-        self.cross_model = []
-
-        found_model = False
-        with self.crossroad.solve(yield_=True) as h:
-            for m in h:
-                found_model = True
-                opt = m
-            if found_model:
-                for atom in opt.symbols(shown=True):
-                    if atom.name == "goal":
-                        self.cross_length = atom.arguments[0].number
-                    else:
-                        self.cross_model.append(atom)
-            else:
-                self.cross_length = -1
+        self.cross_model = self.solve(self.crossroad, "conflict")
+        if self.cross_model:
+            for atom in self.cross_model:
+                if atom.name == "goal":
+                    self.cross_length = atom.arguments[0].number
+                    self.cross_model.remove(atom)
+        else:
+            self.cross_length = -1
 
         # cross_model needs to be sorted in ascending order
         self.cross_model.sort(key=lambda atom: atom.arguments[2].number)
@@ -541,20 +529,16 @@ class RobotPrioritized(Robot):
         self.start = list(self.pos)
         self.plan_finished = False
 
-        # Solving; Due to the #minimize{}. the last model we find will be optimal
-        found_model = False
-        with self.prg.solve(yield_=True) as h:
-            for m in h:
-                found_model = True
-                opt = m
-            if found_model:
-                for atom in opt.symbols(shown=True):
-                    self.model.append(atom)
-                    if atom.name == "chooseShelf":
-                        self.shelf = atom.arguments[0].number
-                    elif (atom.name == "putdown" and self.domain == "b") or \
-                         (atom.name == "pickup" and self.domain == "m"):
-                        self.plan_length = atom.arguments[1].number
+        self.model = self.solve(self.prg, "plan")
+        if self.model:
+            found_model = True
+            for atom in self.model:
+                if atom.name == "chooseShelf":
+                    self.shelf = atom.arguments[0].number
+                elif (atom.name == "putdown" and self.domain == "b") or (atom.name == "pickup" and self.domain == "m"):
+                    self.plan_length = atom.arguments[1].number
+        else:
+            found_model = False
 
         if not found_model:
             self.plan_length = -1
