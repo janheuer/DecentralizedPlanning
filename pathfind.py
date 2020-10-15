@@ -5,21 +5,19 @@ from robot import Robot, RobotSequential, RobotShortest, RobotCrossing, RobotPri
 import argparse
 import sys
 from time import time
-from typing import List, TextIO
+from typing import List
 
 import clingo
 
 
 class Pathfind(object):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, result_path: str, highways: bool,
-                 clingo_arguments: List[str]) -> None:
+    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
+                 result_path: str, highways: bool, clingo_arguments: List[str]) -> None:
         self.instance: str = instance
         self.encoding: str = encoding
         self.domain: str = domain
         self.model_output: bool = model_output
         self.verbose: bool = verbose
-        self.verbose_out: TextIO = verbose_out
         self.benchmark: bool = benchmark
         self.highwaysFlag: bool = highways
         self.clingo_arguments: List[str] = clingo_arguments
@@ -157,7 +155,7 @@ class Pathfind(object):
 
     def print_verbose(self, arg: str) -> None:
         if self.verbose:
-            print(arg, file=self.verbose_out)
+            print(arg, file=sys.stderr)
 
     def run(self) -> int:
         pass
@@ -171,12 +169,11 @@ class Pathfind(object):
 
 
 class PathfindCentralized(Pathfind):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, result_path: str, highways: bool,
-                 clingo_arguments: List[str]) -> None:
+    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
+                 result_path: str, highways: bool, clingo_arguments: List[str]) -> None:
         self.model = None
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, result_path,
-                         highways, clingo_arguments)
+        super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, highways,
+                         clingo_arguments)
 
         self.assign_orders()
 
@@ -232,21 +229,16 @@ class PathfindCentralized(Pathfind):
 
 
 class PathfindDecentralized(Pathfind):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, result_path: str, external: bool, highways: bool, timeout: int,
-                 clingo_arguments: List[str]) -> None:
+    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
+                 result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
         """Assigns initial order to the robots and plans it
         Instance is saved in data structures by helper function parse_instance
         (also generates the Robot objects)
         """
         # input parameters (needed in init)
         self.external: bool = external
-        self.timeout: int = timeout
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, result_path,
-                         highways, clingo_arguments)
-
-        # take time for checking if timeout
-        self.start_time: float = time()
+        super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, highways,
+                         clingo_arguments)
 
         # more initializing
         self.orders_in_delivery = []
@@ -430,11 +422,10 @@ class PathfindDecentralized(Pathfind):
 
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, result_path: str, external: bool, highways: bool, timeout: int,
-                 clingo_arguments: List[str]) -> None:
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, result_path,
-                         external, highways, timeout, clingo_arguments)
+    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
+                 result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
+        super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
+                         clingo_arguments)
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("sequential", instance, result_path)
@@ -453,11 +444,7 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         self.resolved = True 
         
         while self.orders != [] or self.orders_in_delivery != []:
-            if self.timeout < time() - self.start_time and self.timeout != 0:
-                print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
-                sys.exit(0)
             self.t += 1
-
             
             for robot in self.robots:
                 robot.update_state(self.state)
@@ -504,12 +491,11 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         
 
 class PathfindDecentralizedShortest(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, result_path: str, external: bool, highways: bool, timeout: int,
-                 clingo_arguments: List[str]) -> None:
+    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
+                 result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
         self.resolved = False
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, result_path,
-                         external, highways, timeout, clingo_arguments)
+        super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
+                         clingo_arguments)
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("shortest", instance, result_path)
@@ -608,10 +594,6 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
                                         else:
                                             self.plan(r)
 
-            if self.timeout < time() - self.start_time and self.timeout != 0:
-                print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
-                sys.exit(0)
-
             # perform all next actions
             for robot in self.robots:
                 if robot.next_action.name != "":
@@ -652,11 +634,10 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
 
 
 class PathfindDecentralizedCrossing(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, result_path: str, external: bool, highways: bool, timeout: int,
-                 clingo_arguments: List[str]) -> None:
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, result_path,
-                         external, highways, timeout, clingo_arguments)
+    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
+                 result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
+        super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
+                         clingo_arguments)
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("crossing", instance, result_path)
@@ -777,10 +758,6 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
 
 
             # first check for swapping conflicts and solve them
-            
-            if self.timeout < time() - self.start_time and self.timeout != 0:
-                print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
-                sys.exit(0)
 
             # then perform the actions
             for robot in self.robots:
@@ -1176,12 +1153,11 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
 
 
 class PathfindDecentralizedPrioritized(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, result_path: str, external: bool, highways: bool, timeout: int,
-                 clingo_arguments: List[str]) -> None:
+    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
+                 result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
         self.performed_action: [int] = []
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, result_path,
-                         external, highways, timeout, clingo_arguments)
+        super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
+                         clingo_arguments)
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("prioritized", instance, result_path)
@@ -1207,9 +1183,6 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
 
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
-            if self.timeout < time() - self.start_time and self.timeout != 0:
-                print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
-                sys.exit(0)
             self.t += 1
             for robot in self.robots:
                 self.perform_action(robot)
@@ -1223,13 +1196,12 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
 
 
 class PathfindDecentralizedTraffic(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
-                 verbose_out: TextIO, benchmark: bool, result_path: str, external: bool, highways: bool, timeout: int,
-                 clingo_arguments: List[str]) -> None:
+    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
+                 result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
         self.conflict_prg = None
         self.conflict_encoding = "./encodings/conflicts-replace.lp"
-        super().__init__(instance, encoding, domain, model_output, verbose, verbose_out, benchmark, result_path,
-                         external, highways, timeout, clingo_arguments)
+        super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
+                         clingo_arguments)
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("traffic", instance, result_path)
@@ -1277,9 +1249,6 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
 
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
-            if self.timeout < time() - self.start_time and self.timeout != 0:
-                print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
-                sys.exit(0)
             self.t += 1
             # find and solve all conflicts for the current timestep
             self.find_conflicts()
@@ -1298,6 +1267,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="A program for decentralized planning in the asprilo framework",
                                      usage='%(prog)s [options] instance')
     parser.add_argument("instance", help="the instance to be loaded")
+    parser.add_argument("-s", "--strategy", help="conflict solving strategy to be used (default: sequential)",
+                        choices=['sequential', 'shortest', 'crossing', 'prioritized', 'traffic', 'centralized'],
+                        default='sequential', type=str)
+    parser.add_argument("-d", "--domain", help="asprilo domain to be used (default: b)", type=str, default="b",
+                        choices=["b", "m"])
     parser.add_argument("-n", "--nomodel", help="disables output of the model", default=False, action="store_true")
     parser.add_argument("-v", "--verbose", help="outputs additional information (printed to stderr)", default=False,
                         action="store_true")
@@ -1308,26 +1282,18 @@ if __name__ == "__main__":
                         default=False, action="store_true")
     parser.add_argument("-r", "--results", help="use custom directory for the benchmarking results (default: "
                                                 "'./results')", default='./results/', type=str)
-    parser.add_argument("-s", "--strategy", help="conflict solving strategy to be used (default: sequential)",
-                        choices=['sequential', 'shortest', 'crossing', 'prioritized', 'traffic', 'centralized'],
-                        default='sequential', type=str)
+
     parser.add_argument("-e", "--external", help="enables use of external atoms (only for sequential, shortest and "
                                                  "crossing strategy)",
                         default=False, action="store_true")
     parser.add_argument("-H", "--Highways", help="generate highway tuples if they are not given in the instance",
                         default=False, action="store_true")
-    parser.add_argument("-t", "--timeout", help="time in seconds until the program stops and writes a timeout message",
-                        default=0, type=int)
-    parser.add_argument("-d", "--domain", help="asprilo domain to be used (default: b)", type=str, default="b",
-                        choices=["b", "m"])
     parser.add_argument("--debug", help="enables clingo warnings", default=False, action="store_true")
     args = parser.parse_args()
 
-    verbose_out: TextIO = sys.stderr if not args.benchmark else sys.stdout
-
-    clingo_arguments = []
+    clingo_args = []
     if not args.debug:
-        clingo_arguments.append("-Wnone")
+        clingo_args.append("-Wnone")
 
     if args.domain == "m":
         encoding = "./encodings/pathfindDecentralized-m.lp"
@@ -1337,16 +1303,16 @@ if __name__ == "__main__":
     # Initialize the Pathfind object
     if args.strategy == 'sequential':
         pathfind = PathfindDecentralizedSequential(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
-                                                   verbose_out, args.benchmark, args.results, args.external,
-                                                   args.Highways, args.timeout, clingo_arguments)
+                                                   args.benchmark, args.results, args.external, args.Highways,
+                                                   clingo_args)
     elif args.strategy == 'shortest':
         pathfind = PathfindDecentralizedShortest(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
-                                                 verbose_out, args.benchmark, args.results, args.external,
-                                                 args.Highways, args.timeout, clingo_arguments)
+                                                 args.benchmark, args.results, args.external, args.Highways,
+                                                 clingo_args)
     elif args.strategy == 'crossing':
         pathfind = PathfindDecentralizedCrossing(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
-                                                 verbose_out, args.benchmark, args.results, args.external,
-                                                 args.Highways, args.timeout, clingo_arguments)
+                                                 args.benchmark, args.results, args.external, args.Highways,
+                                                 clingo_args)
     elif args.strategy == 'prioritized':
         if args.external:
             print("option --external ignored for prioritized strategy", file=sys.stderr)
@@ -1355,22 +1321,21 @@ if __name__ == "__main__":
         else:
             encoding = "./encodings/pathfindPrioritized.lp"
         pathfind = PathfindDecentralizedPrioritized(args.instance, encoding, args.domain, not args.nomodel,
-                                                    args.verbose, verbose_out, args.benchmark, args.results, False,
-                                                    args.Highways, args.timeout, clingo_arguments)
+                                                    args.verbose, args.benchmark, args.results, False, args.Highways,
+                                                    clingo_args)
     elif args.strategy == 'traffic':
         print("traffic strategy needs special instance in order to work correctly", file=sys.stderr)
         if args.external:
             print("option --external ignored for traffic strategy", file=sys.stderr)
         pathfind = PathfindDecentralizedTraffic(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
-                                                verbose_out, args.benchmark, args.results, False, args.Highways,
-                                                args.timeout, clingo_arguments)
+                                                args.benchmark, args.results, False, args.Highways, clingo_args)
     elif args.strategy == 'centralized':
         if args.domain == "m":
             encoding = "./encodings/pathfindCentralized-m.lp"
         else:
             encoding = "./encodings/pathfindCentralized.lp"
         pathfind = PathfindCentralized(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
-                                       verbose_out, args.benchmark, args.results, args.Highways, clingo_arguments)
+                                       args.benchmark, args.results, args.Highways, clingo_args)
 
     if args.benchmark:
         ts = time()
