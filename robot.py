@@ -6,7 +6,8 @@ import clingo
 
 
 class Robot(object):
-    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments):
+    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                 benchmarker):
         """Initialize the robot:
         Data structure to save inputs
         Clingo object"""
@@ -34,6 +35,8 @@ class Robot(object):
         self.external = external
         self.highways = highways
         self.clingo_arguments = clingo_arguments
+        self.benchmark = benchmark
+        self.benchmarker = benchmarker
 
         # when internal is used clingo object initialized before solve
         if self.external:
@@ -53,7 +56,6 @@ class Robot(object):
 
         self.next_action = clingo.Function("", [])
 
-    # TODO: add parameters 'benchmark' and 'benchmarker'
     # TODO: use solve whenever a program is solved
     def solve(self, prg: clingo.Control, type: str) -> List[clingo.Symbol]:
         if self.benchmark:

@@ -463,7 +463,7 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         if self.benchmark:
             ts: float = time()
         self.robots.append(RobotSequential(id, [x, y], self.encoding, self.domain, self.instance, self.external,
-                                           self.highwaysFlag, self.clingo_arguments))
+                                           self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -545,7 +545,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         if self.benchmark:
             ts: float = time()
         self.robots.append(RobotShortest(id, [x, y], self.encoding, self.domain, self.instance, self.external,
-                                         self.highwaysFlag, self.clingo_arguments))
+                                         self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -742,7 +742,7 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         if self.benchmark:
             ts: float = time()
         self.robots.append(RobotCrossing(id, [x, y], self.encoding, self.domain, self.instance, self.external,
-                                         self.highwaysFlag, self.clingo_arguments))
+                                         self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -1295,7 +1295,7 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
         if self.benchmark:
             ts: float = time()
         self.robots.append(RobotPrioritized(id, [x, y], self.encoding, self.domain, self.instance, self.external,
-                                            self.highwaysFlag, self.clingo_arguments))
+                                            self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
@@ -1350,7 +1350,7 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
         if self.benchmark:
             ts: float = time()
         self.robots.append(Robot(id, [x, y], self.encoding, self.domain, self.instance, self.external,
-                                 self.highwaysFlag, self.clingo_arguments))
+                                 self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
         if self.benchmark:
             tf: float = time()
             t: float = tf - ts
