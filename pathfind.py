@@ -1212,6 +1212,12 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
+
+            for robot in self.robots:
+                action = robot.next_action
+                if action.name == "":
+                    self.plan(robot)
+
             # find and solve all conflicts for the current timestep
             self.resolve_conflicts()
 

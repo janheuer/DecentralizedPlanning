@@ -132,17 +132,15 @@ class Robot(object):
 
             self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
 
-            # add the goal
+            # add the goals
+            self.prg.add("base", [], "goal(" + str(self.goalA) + "," + str(self.id) + ", 1).")
             if self.pickupdone:
-                if self.deliverdone:
-                    self.prg.add("base", [], "deliver(" + str(self.order[1]) + "," + str(self.order[0]) + "," +
-                                 str(self.id) + ",0).")
-                    self.prg.add("base", [], "goal(" + str(self.goalC) + "," + str(self.id) + ", 3).")
-                else:
-                    self.prg.add("base", [], "pickup(" + str(self.id) + ",0).")
-                    self.prg.add("base", [], "goal(" + str(self.goalB) + "," + str(self.id) + ", 2).")
-            else:
-                self.prg.add("base", [], "goal(" + str(self.goalA) + "," + str(self.id) + ", 1).")
+                self.prg.add("base", [], "pickup(" + str(self.id) + ",0).")
+                self.prg.add("base", [], "goal(" + str(self.goalB) + "," + str(self.id) + ", 2).")
+            if self.deliverdone:
+                self.prg.add("base", [], "deliver(" + str(self.order[1]) + "," + str(self.order[0]) + "," +
+                             str(self.id) + ",0).")
+                self.prg.add("base", [], "goal(" + str(self.goalC) + "," + str(self.id) + ", 3).")
 
             for i in range(len(self.state)):
                 for j in range(len(self.state[0])):
