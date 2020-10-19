@@ -327,7 +327,7 @@ class PathfindDecentralized(Pathfind):
         while (not possible_order) and (o != len(self.orders) - 1):
             o += 1
             # list of all shelves which have the needed product
-            possible_shelves = [shelf for [_, shelf] in self.products if id == self.orders[o][1]]
+            possible_shelves = [shelf for [sid, shelf] in self.products if sid == self.orders[o][1]]
             # remove already used shelves
             for sid in self.used_shelves:
                 if sid in possible_shelves:
@@ -380,6 +380,7 @@ class PathfindDecentralized(Pathfind):
         """
         if robot.shelf == -1:  # robot doesn't have a order assigned
             if not self.assign_order(robot):  # try to assign a order
+                print_error("couldn't assign order")
                 return False  # no order can be assigned
             
             if self.domain == "m":
@@ -394,9 +395,11 @@ class PathfindDecentralized(Pathfind):
         found_plan = robot.plan()
 
         if found_plan:  # if the robot found a plan the shelf has to be reserved
+            print_error("found a plan")
             self.reserve_shelf(robot.shelf)
             return True
         else:  # robot couldn't find a plan
+            print_error("couldn't find a plan")
             if robot.shelf == -1:
                 # robot couldn't start planning the order (because he deadlocked in his start position)
                 # release the order so that other robots can try to plan it
@@ -475,6 +478,7 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         self.prg.load("./encodings/conflicts.lp")
 
         for r in self.robots:
+            # TODO: should be next_action for all robots ?
             if r != robot:
                 self.prg.add("base", [], str("waits(" + str(r.id) + ")."))
             else: 
@@ -711,7 +715,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                             else:
                                 self.add_crossroad(r2, r1)
                                 
-                    else: # if another robots waits or performs an action the robot should wait
+                    else:  # if another robots waits or performs an action the robot should wait
+                        # TODO: fix ?
                         r1 = 0
                         r2 = 0
                         for r in self.robots:
@@ -1148,7 +1153,7 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
         # collect plans from all other robots
         for r in self.robots:
             if robot != r:
-                self.print_verbose("collecting plan from robot" + str(r))
+                self.print_verbose("collecting plan from robot" + str(r.id))
                 # r.get_plan() get an offset as the argument
                 # the offset is 1 if r has not yet performed an action in this timestep
                 # (as in this case r is one step behind robot)
@@ -1157,8 +1162,8 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
                 if plan:
                     robot.add_plan(plan)
                 else:
-                    self.print_verbose("robot" + str(r) + "does not have a plan, current position " + str(r.pos) +
-                                       "will be blocked")
+                    self.print_verbose("robot" + str(r.id) + " does not have a plan, current position (" +
+                                       str(r.pos[0]) + "," + str(r.pos[1]) + ") will be blocked")
                     robot.block_pos((r.pos[0], r.pos[1]))
 
         super().plan(robot)
@@ -1260,14 +1265,17 @@ if __name__ == "__main__":
 
     # Initialize the Pathfind object
     if args.strategy == 'sequential':
+        # TODO: test sequential
         pathfind = PathfindDecentralizedSequential(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                    args.benchmark, args.results, False, args.Highways,
                                                    clingo_args)
     elif args.strategy == 'shortest':
+        # TODO: test shortest
         pathfind = PathfindDecentralizedShortest(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                  args.benchmark, args.results, False, args.Highways,
                                                  clingo_args)
     elif args.strategy == 'crossing':
+        # TODO: test corssing
         pathfind = PathfindDecentralizedCrossing(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                  args.benchmark, args.results, False, args.Highways,
                                                  clingo_args)
@@ -1280,10 +1288,13 @@ if __name__ == "__main__":
                                                     args.verbose, args.benchmark, args.results, False, args.Highways,
                                                     clingo_args)
     elif args.strategy == 'traffic':
-        print_error("traffic strategy needs special instance in order to work correctly")
+        # TODO: test traffic
+        print_error("Warning: traffic strategy needs special instance in order to work correctly")
         pathfind = PathfindDecentralizedTraffic(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                 args.benchmark, args.results, False, args.Highways, clingo_args)
     elif args.strategy == 'centralized':
+        # TODO: update shelf assignment
+        # TODO: test centralized
         if args.domain == "m":
             encoding = "./encodings/pathfindCentralized-m.lp"
         else:

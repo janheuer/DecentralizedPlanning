@@ -7,6 +7,7 @@ from pathlib import Path
 
 def solve(prg: clingo.Control) -> List[clingo.Symbol]:
     model: List[clingo.Symbol] = []
+    found_model: bool = False
     with prg.solve(yield_=True) as h:
         for m in h:
             found_model = True
