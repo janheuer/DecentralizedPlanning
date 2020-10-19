@@ -393,6 +393,7 @@ class PathfindDecentralized(Pathfind):
     def add_wait(self, r):
         """Add a wait action to the robots plan"""
         self.print_verbose("r" + str(r.id) + " waits")
+        self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 1
         r.wait()
         self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
         
@@ -494,6 +495,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         but only the robot for which the new plan adds less time uses the new plan
         For conflicts where only one robot moves the other robot waits
         """
+
         self.resolved = True
 
         while self.orders != [] or self.orders_in_delivery != []:
@@ -585,7 +587,8 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
 
         if self.domain == "m":
             self.t -= 1
-
+       
+            
         return self.t
 
     def replan(self, robot, out=0):
@@ -609,6 +612,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         Also adds robot to the list of robots which have to be checked for conflicts
         and marks the new next_pos of the robot
         """
+        self.state[robot.next_pos[0] - 1][robot.next_pos[1] - 1] = 1
         robot.use_new_plan()
         self.resolved = True
         self.state[robot.next_pos[0] - 1][robot.next_pos[1] - 1] = 0
@@ -640,11 +644,11 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         are solved by making one of the robots wait"""
         # keep track of which robots we still have to check for conflicts
 
-        self.resolved = True
 
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
-
+         
+            
             for r in self.robots:
                 # if the robot doesn't have a order or was in a deadlock it needs to find a new plan
                 if (r.shelf == -1) or (r.next_action.name == ""):
@@ -653,12 +657,7 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                 else:
                     self.next_action_possible(r, r.next_action)
 
-            # unmark all old positions
-            for robot in self.robots:
-                self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1
-            # mark all new positions
-            for robot in self.robots:
-                self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0
+
 
             self.resolved = True 
             while self.resolved:  # Needs to recheck for conflicts if a robot replans
@@ -678,7 +677,7 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                         self.print_verbose(
                             "swapping conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(self.t))
                         # if r1 isn't in a conflict but r2 is already dodging another robot
-                        self.resolved = False
+                        self.resolved = True
                         if (not r1.in_conflict) and r2.dodging and (not r1.replanned):
                             # r1 will "copy" the dodging from r2 but has to make an additional step to dodge r2
                             self.add_nested_crossroad(r1, r2)
@@ -747,7 +746,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
             # then perform the actions
             for robot in self.robots:
                 self.perform_action(robot)
-                self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0
+                self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1
+                self.state[robot.next_pos[0] - 1][robot.next_pos[1] - 1] = 0
 
         if self.domain == "m":
             self.t -= 1
@@ -1061,6 +1061,7 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         """Make the robot use the crossroad
         Update position, robot has to be checked for possible new conflicts"""
         # add the crossroad to the model, also generates the returning
+        self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 1
         r.use_crossroad()
         self.resolved = True
         self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
@@ -1123,14 +1124,14 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                     break
 
         if not possible:
-            self.state[r.pos[0] - 1][r.pos[1] - 1] = 1
+            self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 1
             r.clear_state()
             self.plan(r)
             old_partners = r.reset_crossing()
             # delete r from conflict_partners of all partners
             for p in old_partners:
                 p.conflict_partners.pop(r)
-            self.state[r.pos[0] - 1][r.pos[1] - 1] = 0
+            self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
         return possible
 
     def add_wait(self, r):
@@ -1204,40 +1205,29 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
                     if robot.id == rid:
                         self.add_wait(robot)
 
-    def find_conflicts(self):
+    def resolve_conflicts(self):
         # load encoding which computes conflicts and solves them by adding wait actions
-        self.conflict_prg = clingo.Control(self.clingo_arguments)
-        self.conflict_prg.load(self.conflict_encoding)
+        conflicts = super().check_conflicts()
 
-        # add inputs to the program
-        for robot in self.robots:
-            # current position
-            # self.t has to be decreased by 1
-            self.conflict_prg.add("base", [], "position((" + str(robot.pos[0]) + "," + str(robot.pos[1]) + ")," +
-                                  str(robot.id) + "," + str(self.t - 1) + ").")
-            # add next action
-            if robot.next_action.name == "move":
-                self.conflict_prg.add("base", [], "move((" + str(robot.next_action.arguments[0].arguments[0].number) +
-                                      "," + str(robot.next_action.arguments[0].arguments[1].number) + ")," +
-                                      str(robot.id) + "," + str(self.t) + ").")
-            # if the next action is not a move it is not necessary to know what action it is
-            # (as the encoding only needs to know whether a robot moves or not)
-            else:
-                self.conflict_prg.add("base", [], "action(" + str(robot.id) + "," + str(self.t) + ").")
-
-        # find and solve conflicts
-        self.conflict_prg.ground([("base", [])])
-        return self.solve(self.conflict_prg, "conflict")
-
+        for conflict in conflicts:  # Conflict detection
+            if conflict.name == "swap":
+                print("Error: Illegal swap detected:")
+                print(conflict)
+            for r1 in self.robots:
+                if r1.id == conflict.arguments[0].number:
+                    self.add_wait(r1)
+                        
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
             # find and solve all conflicts for the current timestep
-            conflicts = self.find_conflicts()
-            self.solve_conflicts(conflicts)
+            self.resolve_conflicts()
+
             # perform all actions
             for robot in self.robots:
+                print("r" + str(robot.id) + " at "+ str(robot.pos) + " at " + str(self.t))
                 self.perform_action(robot)
+                
 
         if self.domain == "m":
             self.t -= 1

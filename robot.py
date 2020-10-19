@@ -16,6 +16,11 @@ class Robot(object):
         self.start = list(start)
         self.pos = list(start)
 
+        self.goalA = (-1,-1)
+        self.goalB = (-1,-1)
+        self.goalC = (-1,-1)
+        
+        
         self.next_pos = [-1, -1]
 
         self.state = []  # State of the world around the robot as 2D Matrix
@@ -70,6 +75,7 @@ class Robot(object):
 
         self.model = []
         
+        
         if self.external:
             # Assign externals before solving
             self.prg.assign_external(clingo.Function("start", [(self.start[0], self.start[1]), self.id]), False)
@@ -89,18 +95,54 @@ class Robot(object):
                     self.prg.assign_external(clingo.Function("block", [(i + 1, j + 1)]), not self.state[i][j])
         else:  # if the flag -i is used
             # Add all externals directly as literals instead and then ground
+            
+            if self.shelf == -1:
+                self.prg_goals = clingo.Control(self.clingo_arguments)
+                self.prg_goals.load(self.instance)
+                self.prg_goals.load("./encodings/goals.lp")
+                
+                
+                self.prg_goals.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
+                self.prg_goals.add("base", [], "robot(" + str(self.id) + ").")
+                for shelf in self.available_shelves:
+                    self.prg_goals.add("base", [], "available(" + str(shelf) + ").")
+                
+                self.prg_goals.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," + str(
+                    self.order[0]) + "," + str(self.id) + ").")
+                
+                self.prg_goals.ground([("base", [])])
+                found_model_goals = False
+                with self.prg_goals.solve(yield_=True) as h:
+                    for m in h:
+                        found_model_goals = True
+                        opt = m
+                    if found_model_goals:
+                        for atom in opt.symbols(shown=True):
+                            if atom.name == "chooseShelf":
+                                self.shelf = atom.arguments[0].number
+                            if atom.name == "goal":
+                                if atom.arguments[2].number == 1:
+                                    self.goalA = (atom.arguments[0].arguments[0].number,atom.arguments[0].arguments[1].number)
+                                if atom.arguments[2].number == 2:
+                                    self.goalB = (atom.arguments[0].arguments[0].number,atom.arguments[0].arguments[1].number)
+                                if atom.arguments[2].number == 3:
+                                    self.goalC = (atom.arguments[0].arguments[0].number,atom.arguments[0].arguments[1].number)
+                    
+            
             self.prg = clingo.Control(self.clingo_arguments)
             self.prg.load(self.encoding)
             self.prg.load(self.instance)
             
-
-            
             self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
+            
+            self.prg.add("base", [],"goal(" + str(self.goalA) + "," + str(self.id) + ", 1).")
             if self.pickupdone:
                 self.prg.add("base", [], "pickup(" + str(self.id) + ",0).")
+                self.prg.add("base", [],"goal(" + str(self.goalB) + "," + str(self.id) + ", 2).")
             if self.deliverdone:
                 self.prg.add("base", [], "deliver(" + str(self.order[1]) + "," + str(self.order[0]) + "," + str(self.id)
                              + ",0).")
+                self.prg.add("base", [],"goal(" + str(self.goalC) + "," + str(self.id) + ", 3).")
 
             for i in range(len(self.state)):
                 for j in range(len(self.state[0])):
@@ -123,14 +165,19 @@ class Robot(object):
         self.start = list(self.pos)
         self.plan_finished = False
 
+        found_model = False
+
         self.model = self.solve(self.prg, "plan")
         if self.model:
             found_model = True
             for atom in self.model:
                 if atom.name == "chooseShelf":
                     self.shelf = atom.arguments[0].number
-                elif (atom.name == "putdown" and self.domain == "b") or (atom.name == "pickup" and self.domain == "m"):
+                elif (atom.name == "putdown" and self.domain == "b") or (atom.name == "pickup"):
                     self.plan_length = atom.arguments[1].number
+                elif (atom.name == "deliver" and self.domain == "b"):
+                    if self.plan_length < atom.arguments[3].number:
+                        self.plan_length = atom.arguments[3].number
 
         if not found_model:
             self.plan_length = -1
