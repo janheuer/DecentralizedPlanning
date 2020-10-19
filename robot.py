@@ -291,8 +291,10 @@ class RobotShortest(Robot):
 
 
 class RobotCrossing(Robot):
-    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments):
-        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments)
+    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                 benchmarker):
+        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                         benchmarker)
 
         """Additional initialization for crossing strategy"""
         self.using_crossroad = False
@@ -494,8 +496,10 @@ class RobotCrossing(Robot):
 
 
 class RobotPrioritized(Robot):
-    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments):
-        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments)
+    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                 benchmarker):
+        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                         benchmarker)
 
         self.additional_inputs = []
         self.blocked_positions = []
