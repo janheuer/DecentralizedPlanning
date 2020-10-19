@@ -445,9 +445,9 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                             if not self.plan(robot):
                                 continue
                     if conflict.name == "conflictW":
-                            robot.update_state(self.state)
-                            if not self.plan(robot):
-                                continue
+                        robot.update_state(self.state)
+                        if not self.plan(robot):
+                            continue
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
                 self.perform_action(robot)
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
@@ -518,7 +518,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
             self.resolved = True 
             while self.resolved:  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
-                conflicts = super().check_conflicts()
+                conflicts = self.check_conflicts()
 
                 for conflict in conflicts:  # Conflict detection
                     self.resolved = True
@@ -617,9 +617,6 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         self.resolved = True
         self.state[robot.next_pos[0] - 1][robot.next_pos[1] - 1] = 0
 
-    def add_wait(self, r):
-        super().add_wait(r)
-
 
 class PathfindDecentralizedCrossing(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
@@ -662,7 +659,7 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
             self.resolved = True 
             while self.resolved:  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
-                conflicts = super().check_conflicts()
+                conflicts = self.check_conflicts()
             
                 for conflict in conflicts:
                     if conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
@@ -1134,9 +1131,6 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
             self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
         return possible
 
-    def add_wait(self, r):
-        super().add_wait(r)
-
 
 class PathfindDecentralizedPrioritized(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
@@ -1196,26 +1190,17 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
         self.robots.append(Robot(id, [x, y], self.encoding, self.domain, self.instance, self.external,
                                  self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
 
-    def solve_conflicts(self, model):
-        # add wait actions to the robots according to the model
-        for atom in model:
-            if atom.name == "waits":
-                rid = atom.arguments[0].number
-                for robot in self.robots:
-                    if robot.id == rid:
-                        self.add_wait(robot)
-
     def resolve_conflicts(self):
         # load encoding which computes conflicts and solves them by adding wait actions
-        conflicts = super().check_conflicts()
+        conflicts = self.check_conflicts()
 
         for conflict in conflicts:  # Conflict detection
             if conflict.name == "swap":
-                print("Error: Illegal swap detected:")
-                print(conflict)
-            for r1 in self.robots:
-                if r1.id == conflict.arguments[0].number:
-                    self.add_wait(r1)
+                print("Error: Illegal swap detected: " + str(conflict), file=sys.stderr)
+            else:
+                for r1 in self.robots:
+                    if r1.id == conflict.arguments[0].number:
+                        self.add_wait(r1)
                         
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
@@ -1225,9 +1210,8 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
 
             # perform all actions
             for robot in self.robots:
-                print("r" + str(robot.id) + " at "+ str(robot.pos) + " at " + str(self.t))
+                # print("r" + str(robot.id) + " at "+ str(robot.pos) + " at " + str(self.t))
                 self.perform_action(robot)
-                
 
         if self.domain == "m":
             self.t -= 1

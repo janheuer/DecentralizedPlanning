@@ -16,11 +16,10 @@ class Robot(object):
         self.start = list(start)
         self.pos = list(start)
 
-        self.goalA = (-1,-1)
-        self.goalB = (-1,-1)
-        self.goalC = (-1,-1)
-        
-        
+        self.goalA = (-1, -1)
+        self.goalB = (-1, -1)
+        self.goalC = (-1, -1)
+
         self.next_pos = [-1, -1]
 
         self.state = []  # State of the world around the robot as 2D Matrix
@@ -74,8 +73,7 @@ class Robot(object):
         self.old_plan_length = self.plan_length
 
         self.model = []
-        
-        
+
         if self.external:
             # Assign externals before solving
             self.prg.assign_external(clingo.Function("start", [(self.start[0], self.start[1]), self.id]), False)
@@ -100,8 +98,7 @@ class Robot(object):
                 self.prg_goals = clingo.Control(self.clingo_arguments)
                 self.prg_goals.load(self.instance)
                 self.prg_goals.load("./encodings/goals.lp")
-                
-                
+
                 self.prg_goals.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
                 self.prg_goals.add("base", [], "robot(" + str(self.id) + ").")
                 for shelf in self.available_shelves:
@@ -175,7 +172,7 @@ class Robot(object):
                     self.shelf = atom.arguments[0].number
                 elif (atom.name == "putdown" and self.domain == "b") or (atom.name == "pickup"):
                     self.plan_length = atom.arguments[1].number
-                elif (atom.name == "deliver" and self.domain == "b"):
+                elif atom.name == "deliver" and self.domain == "b":
                     if self.plan_length < atom.arguments[3].number:
                         self.plan_length = atom.arguments[3].number
 
@@ -291,7 +288,7 @@ class Robot(object):
         """Update the state matrix
         Robot can only look onto the positions it can move onto
         All other positions are assumed to be free"""
-        if self.state == []:
+        if not self.state:
             for i in range(len(state)):
                 self.state.append([])
                 for j in range(len(state[0])):
