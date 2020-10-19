@@ -6,13 +6,13 @@ import clingo
 
 
 class Robot(object):
-    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+    def __init__(self, rid, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
                  benchmarker):
         """Initialize the robot:
         Data structure to save inputs
         Clingo object"""
         # inputs
-        self.id = id
+        self.id = rid
         self.start = list(start)
         self.pos = list(start)
 
@@ -66,14 +66,40 @@ class Robot(object):
         else:
             return solve(prg)
 
-    def find_new_plan(self):
-        """Makes the robot solve for a new plan and keeps the old plan saved
-        If you dont want to compare the old and new plan use solve() instead"""
-        self.old_model = list(self.model)
-        self.old_plan_length = self.plan_length
+    def generate_goals(self) -> bool:
+        self.prg_goals = clingo.Control(self.clingo_arguments)
+        self.prg_goals.load(self.instance)
+        self.prg_goals.load("./encodings/goals.lp")
 
-        self.model = []
+        self.prg_goals.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) +
+                           ").")
+        self.prg_goals.add("base", [], "robot(" + str(self.id) + ").")
 
+        for shelf in self.available_shelves:
+            self.prg_goals.add("base", [], "available(" + str(shelf) + ").")
+
+        self.prg_goals.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," +
+                           str(self.order[0]) + "," + str(self.id) + ").")
+
+        self.prg_goals.ground([("base", [])])
+        model = self.solve(self.prg_goals, "assignment")
+        if model:
+            for atom in model:
+                if atom.name == "chooseShelf":
+                    self.shelf = atom.arguments[0].number
+                if atom.name == "goal":
+                    if atom.arguments[2].number == 1:
+                        self.goalA = (atom.arguments[0].arguments[0].number, atom.arguments[0].arguments[1].number)
+                    if atom.arguments[2].number == 2:
+                        self.goalB = (atom.arguments[0].arguments[0].number, atom.arguments[0].arguments[1].number)
+                    if atom.arguments[2].number == 3:
+                        self.goalC = (atom.arguments[0].arguments[0].number, atom.arguments[0].arguments[1].number)
+        else:
+            return False
+
+        return True
+
+    def add_inputs(self) -> bool:
         if self.external:
             # Assign externals before solving
             self.prg.assign_external(clingo.Function("start", [(self.start[0], self.start[1]), self.id]), False)
@@ -93,78 +119,45 @@ class Robot(object):
                     self.prg.assign_external(clingo.Function("block", [(i + 1, j + 1)]), not self.state[i][j])
         else:  # if the flag -i is used
             # Add all externals directly as literals instead and then ground
-            
+            # assign a shelf and generate the goals
             if self.shelf == -1:
-                self.prg_goals = clingo.Control(self.clingo_arguments)
-                self.prg_goals.load(self.instance)
-                self.prg_goals.load("./encodings/goals.lp")
+                if not self.generate_goals():
+                    # no shelf could be assigned
+                    return False
 
-                self.prg_goals.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
-                self.prg_goals.add("base", [], "robot(" + str(self.id) + ").")
-                for shelf in self.available_shelves:
-                    self.prg_goals.add("base", [], "available(" + str(shelf) + ").")
-                
-                self.prg_goals.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," + str(
-                    self.order[0]) + "," + str(self.id) + ").")
-                
-                self.prg_goals.ground([("base", [])])
-                found_model_goals = False
-                with self.prg_goals.solve(yield_=True) as h:
-                    for m in h:
-                        found_model_goals = True
-                        opt = m
-                    if found_model_goals:
-                        for atom in opt.symbols(shown=True):
-                            if atom.name == "chooseShelf":
-                                self.shelf = atom.arguments[0].number
-                            if atom.name == "goal":
-                                if atom.arguments[2].number == 1:
-                                    self.goalA = (atom.arguments[0].arguments[0].number,atom.arguments[0].arguments[1].number)
-                                if atom.arguments[2].number == 2:
-                                    self.goalB = (atom.arguments[0].arguments[0].number,atom.arguments[0].arguments[1].number)
-                                if atom.arguments[2].number == 3:
-                                    self.goalC = (atom.arguments[0].arguments[0].number,atom.arguments[0].arguments[1].number)
-                    
-            
             self.prg = clingo.Control(self.clingo_arguments)
             self.prg.load(self.encoding)
             self.prg.load(self.instance)
-            
+
             self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
-            
-            self.prg.add("base", [],"goal(" + str(self.goalA) + "," + str(self.id) + ", 1).")
+
+            # add the goal
             if self.pickupdone:
-                self.prg.add("base", [], "pickup(" + str(self.id) + ",0).")
-                self.prg.add("base", [],"goal(" + str(self.goalB) + "," + str(self.id) + ", 2).")
-            if self.deliverdone:
-                self.prg.add("base", [], "deliver(" + str(self.order[1]) + "," + str(self.order[0]) + "," + str(self.id)
-                             + ",0).")
-                self.prg.add("base", [],"goal(" + str(self.goalC) + "," + str(self.id) + ", 3).")
+                if self.deliverdone:
+                    self.prg.add("base", [], "deliver(" + str(self.order[1]) + "," + str(self.order[0]) + "," +
+                                 str(self.id) + ",0).")
+                    self.prg.add("base", [], "goal(" + str(self.goalC) + "," + str(self.id) + ", 3).")
+                else:
+                    self.prg.add("base", [], "pickup(" + str(self.id) + ",0).")
+                    self.prg.add("base", [], "goal(" + str(self.goalB) + "," + str(self.id) + ", 2).")
+            else:
+                self.prg.add("base", [], "goal(" + str(self.goalA) + "," + str(self.id) + ", 1).")
 
             for i in range(len(self.state)):
                 for j in range(len(self.state[0])):
                     if not (self.state[i][j]):
                         self.prg.add("base", [], "block((" + str(i + 1) + ", " + str(j + 1) + ")).")
-            if self.shelf != -1:
-                self.prg.add("base", [], "available(" + str(self.shelf) + ").")
-            else:
-                for shelf in self.available_shelves:
-                    self.prg.add("base", [], "available(" + str(shelf) + ").")
 
-            self.prg.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," + str(
-                self.order[0]) + "," + str(self.id) + ").")
+            self.prg.add("base", [], "available(" + str(self.shelf) + ").")
 
-            parts = [("base", []), ("decentralizedNoExternals", [self.id])]
-            if self.highways:
-                parts.append(("highways", []))
-            self.prg.ground(parts)
+            self.prg.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," +
+                         str(self.order[0]) + "," + str(self.id) + ").")
 
-        self.start = list(self.pos)
-        self.plan_finished = False
+        return True
 
+    def process_model(self) -> bool:
         found_model = False
 
-        self.model = self.solve(self.prg, "plan")
         if self.model:
             found_model = True
             for atom in self.model:
@@ -188,6 +181,30 @@ class Robot(object):
                 self.available_shelves = []
 
         return found_model
+
+    def find_new_plan(self):
+        """Makes the robot solve for a new plan and keeps the old plan saved
+        If you dont want to compare the old and new plan use solve() instead"""
+        self.old_model = list(self.model)
+        self.old_plan_length = self.plan_length
+
+        self.model = []
+
+        if not self.add_inputs():
+            return False
+
+        if not self.external:
+            parts = [("base", []), ("decentralizedNoExternals", [self.id])]
+            if self.highways:
+                parts.append(("highways", []))
+            self.prg.ground(parts)
+
+        self.start = list(self.pos)
+        self.plan_finished = False
+
+        self.model = self.solve(self.prg, "plan")
+
+        return self.process_model()
 
     def use_new_plan(self):
         """Start using the new plan"""
@@ -335,9 +352,9 @@ class RobotShortest(Robot):
 
 
 class RobotCrossing(Robot):
-    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+    def __init__(self, rid, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
                  benchmarker):
-        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+        super().__init__(rid, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
                          benchmarker)
 
         """Additional initialization for crossing strategy"""
@@ -454,7 +471,7 @@ class RobotCrossing(Robot):
         """Start using the crossroad model
         First the returning part has to be generated
         and then both parts have to be added to the normal model"""
-        if self.cross_model == []:
+        if not self.cross_model:
             return
 
         self.in_conflict = True
@@ -540,9 +557,9 @@ class RobotCrossing(Robot):
 
 
 class RobotPrioritized(Robot):
-    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+    def __init__(self, rid, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
                  benchmarker):
-        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+        super().__init__(rid, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
                          benchmarker)
 
         self.additional_inputs = []
@@ -552,16 +569,7 @@ class RobotPrioritized(Robot):
         # similar to Robot.solve() / Robot.find_new_plan()
         # but needs to add the additional input to the program
         # and clear additional inputs after solving
-        self.prg = clingo.Control(self.clingo_arguments)
-        self.prg.load(self.encoding)
-        self.prg.load(self.instance)
-        self.prg.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
-
-        for shelf in self.available_shelves:
-            self.prg.add("base", [], "available(" + str(shelf) + ").")
-
-        self.prg.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," + str(self.order[0]) +
-                     "," + str(self.id) + ").")
+        self.add_inputs()
 
         for atom in self.additional_inputs:
             self.prg.add("base", [], atom)
@@ -578,27 +586,16 @@ class RobotPrioritized(Robot):
         self.plan_finished = False
 
         self.model = self.solve(self.prg, "plan")
-        if self.model:
-            found_model = True
-            for atom in self.model:
-                if atom.name == "chooseShelf":
-                    self.shelf = atom.arguments[0].number
-                elif (atom.name == "putdown" and self.domain == "b") or (atom.name == "pickup" and self.domain == "m"):
-                    self.plan_length = atom.arguments[1].number
-        else:
-            found_model = False
 
-        if not found_model:
-            self.plan_length = -1
-            self.next_action = clingo.Function("", [])
-            if self.shelf == -1:
-                self.available_shelves = []
-        else:
+        self.process_model()
+
+        if self.process_model():
             self.t = 0
             self.get_next_action()
             self.t = 1
-
-        return found_model
+            return True
+        else:
+            return False
 
     def get_plan(self, offset):
         # returns all pos and move atoms from current timestep on

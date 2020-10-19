@@ -9,9 +9,11 @@ def solve(prg: clingo.Control) -> List[clingo.Symbol]:
     model: List[clingo.Symbol] = []
     with prg.solve(yield_=True) as h:
         for m in h:
+            found_model = True
             opt = m
-        for atom in opt.symbols(shown=True):
-            model.append(atom)
+        if found_model:
+            for atom in opt.symbols(shown=True):
+                model.append(atom)
     return model
 
 

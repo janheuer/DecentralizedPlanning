@@ -10,6 +10,10 @@ from typing import List
 import clingo
 
 
+def print_error(arg: str) -> None:
+    print(arg, file=sys.stderr)
+
+
 class Pathfind(object):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
                  result_path: str, highways: bool, clingo_arguments: List[str]) -> None:
@@ -105,10 +109,12 @@ class Pathfind(object):
             order.append(order_stations[order[0]])
         # now self.orders has format [[id,product,station]]
 
-    def init_robot(self, id: int, x: int, y: int) -> None:
+    def init_robot(self, rid: int, x: int, y: int) -> None:
+        # implemented in subclasses in order to use respective robot class
         pass
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
+        # implemented in subclasses as the path to save benchmark results depends on the strategy
         pass
 
     def get_inits(self) -> List[str]:
@@ -158,12 +164,16 @@ class Pathfind(object):
             print(arg, file=sys.stderr)
 
     def run(self) -> int:
+        # implements the different strategies in the subclasses
         pass
 
     def solve(self, prg: clingo.Control, type: str) -> List[clingo.Symbol]:
+        # helper function to solve a logic program
         if self.benchmark:
+            # finds model and saves the prg stats
             return self.benchmarker.solve(prg, type)
         else:
+            # just finds model
             return solve(prg)
 
 
@@ -171,6 +181,7 @@ class PathfindCentralized(Pathfind):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
                  result_path: str, highways: bool, clingo_arguments: List[str]) -> None:
         self.model = None
+
         super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, highways,
                          clingo_arguments)
 
@@ -185,11 +196,12 @@ class PathfindCentralized(Pathfind):
                          str(self.orders[0][0]) + ", " + str(rid) + ").")
             del self.orders[0]
 
-    def init_robot(self, id: int, x: int, y: int) -> None:
-        self.robots.append((id, x, y))
+    def init_robot(self, rid: int, x: int, y: int) -> None:
+        self.robots.append((rid, x, y))
 
     def get_inits(self) -> List[str]:
         inits = super().get_inits()
+
         for rid, x, y in self.robots:
             inits.append("init(object(robot," + str(rid) + "),value(at,(" + str(x) + "," + str(y) + ")))")
 
@@ -199,10 +211,15 @@ class PathfindCentralized(Pathfind):
         self.t = 0
         self.prg.load(self.encoding)
 
-        self.prg.ground([("base", [])])
+        parts = [("base", [])]
+        if self.highways:
+            parts.append(("highways", []))
+
+        self.prg.ground(parts)
 
         self.model = self.solve(self.prg, "solve")
 
+        # print actions and save plan length
         for atom in self.model:
             name = atom.name
             args = []
@@ -263,10 +280,9 @@ class PathfindDecentralized(Pathfind):
         for robot in self.robots:
             robot.update_state(self.state)
 
-    """general helper functions"""
-
     def get_inits(self) -> List[str]:
         inits = super().get_inits()
+
         for robot in self.robots:
             inits.append("init(object(robot," + str(robot.id) + "),value(at,(" + str(robot.pos[0]) + "," + str(
                 robot.pos[1]) + ")))")
@@ -290,23 +306,19 @@ class PathfindDecentralized(Pathfind):
             self.plan(robot)
         else:
             self.print_action(robot.id, name, args, self.t)
-        if self.domain == "m":
-            if name == "pickup":
-                self.finish_order(robot.order, robot.shelf)
-                robot.release_order()
-        else:
-            if name == "putdown":
-                # order is finished
-                self.finish_order(robot.order, robot.shelf)
-                robot.release_order()
-                # plan a new order
+
+        # check if order is finished
+        if (self.domain == "m" and name == "pickup") or (self.domain == "b" and name == "putdown"):
+            self.finish_order(robot.order, robot.shelf)
+            robot.release_order()
+            # in b domain the robot has to plan a new order
+            if self.domain == "b":
                 self.plan(robot)
 
     def assign_order(self, robot):
         """Assign the first possible order to the robot
         Return True/False if an order was assigned/wasn't assigned
         """
-
         # possible_shelves is used to check if an order can be completed
         possible_shelves = []
         o = -1
@@ -315,13 +327,13 @@ class PathfindDecentralized(Pathfind):
         while (not possible_order) and (o != len(self.orders) - 1):
             o += 1
             # list of all shelves which have the needed product
-            possible_shelves = [shelf for [id, shelf] in self.products if id == self.orders[o][1]]
+            possible_shelves = [shelf for [_, shelf] in self.products if id == self.orders[o][1]]
             # remove already used shelves
-            for id in self.used_shelves:
-                if id in possible_shelves:
-                    possible_shelves.remove(id)
+            for sid in self.used_shelves:
+                if sid in possible_shelves:
+                    possible_shelves.remove(sid)
             # if there are shelves the order is possible
-            if possible_shelves != []:
+            if possible_shelves:
                 possible_order = True
         if possible_order:
             # assign the order to the robot and say which shelves can be used
@@ -369,6 +381,7 @@ class PathfindDecentralized(Pathfind):
         if robot.shelf == -1:  # robot doesn't have a order assigned
             if not self.assign_order(robot):  # try to assign a order
                 return False  # no order can be assigned
+            
             if self.domain == "m":
                 self.print_verbose("robot" + str(robot.id) + " planning order id=" + str(robot.order[0]) + " product="
                                    + str(robot.order[1]) + " at t=" + str(self.t))
@@ -408,6 +421,7 @@ class PathfindDecentralized(Pathfind):
                 self.prg.add("base", [], str(r.next_action) + ".")
             else:
                 self.prg.add("base", [], str("wait(" + str(r.id) + ")."))
+                
             self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
         self.prg.ground([("base", [])])
 
@@ -415,16 +429,11 @@ class PathfindDecentralized(Pathfind):
 
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
-                 result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
-        super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
-                         clingo_arguments)
-
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("sequential", instance, result_path)
 
-    def init_robot(self, id: int, x: int, y: int) -> None:
-        self.robots.append(RobotSequential(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+    def init_robot(self, rid: int, x: int, y: int) -> None:
+        self.robots.append(RobotSequential(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
                                            self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
 
     def run(self):
@@ -433,21 +442,22 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         When robots have completed an order, they get assigned a new order
         Finishes when all orders are delivered
         """
-        
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
             
             for robot in self.robots:
                 robot.update_state(self.state)
-                for conflict in self.check_conflicts(robot):
-                    if conflict.name == "swap" or conflict.name == "conflict":
-                        if robot.id == conflict.arguments[0].number or robot.id == conflict.arguments[1].number :
+
+                for conflict in self.check_conflicts_robot(robot):
+                    if conflict.name in ["swap", "conflict"]:
+                        if robot.id == conflict.arguments[0].number or robot.id == conflict.arguments[1].number:
                             if not self.plan(robot):
                                 continue
                     if conflict.name == "conflictW":
                         robot.update_state(self.state)
                         if not self.plan(robot):
                             continue
+
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
                 self.perform_action(robot)
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 0  # mark new position as blocked
@@ -457,18 +467,20 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
 
         return self.t
 
-    def check_conflicts(self, robot):
+    def check_conflicts_robot(self, robot):
         """Finds all conflicts between robots
         and returns a list of conflicts
         """
         self.prg = clingo.Control(self.clingo_arguments)
         self.prg.load("./encodings/conflicts.lp")
+
         for r in self.robots:
             if r != robot:
                 self.prg.add("base", [], str("waits(" + str(r.id) + ")."))
             else: 
                 if r.next_action != clingo.Function("", []):
                     self.prg.add("base", [], str(r.next_action) + ".")
+
             self.prg.add("base", [], "position(" + str(r.id) + ",(" + str(r.pos[0]) + "," + str(r.pos[1]) + ")).")
         self.prg.ground([("base", [])])
 
@@ -479,14 +491,15 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
                  result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
         self.resolved = False
+
         super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
                          clingo_arguments)
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("shortest", instance, result_path)
 
-    def init_robot(self, id: int, x: int, y: int) -> None:
-        self.robots.append(RobotShortest(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+    def init_robot(self, rid: int, x: int, y: int) -> None:
+        self.robots.append(RobotShortest(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
                                          self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
 
     def run(self):
@@ -495,9 +508,6 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         but only the robot for which the new plan adds less time uses the new plan
         For conflicts where only one robot moves the other robot waits
         """
-
-        self.resolved = True
-
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
 
@@ -522,24 +532,23 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
 
                 for conflict in conflicts:  # Conflict detection
                     self.resolved = True
-                    if conflict.name == "conflict" or conflict.name == "swap":
+                    if conflict.name in ["conflict", "swap"]:
                         # if there is a conflict the robot with the lower ID needs to replan
                         for r1 in self.robots:
                             if r1.id == conflict.arguments[0].number:
                                 for r2 in self.robots:
                                     if r2.id == conflict.arguments[1].number:
                                         if conflict.name == "conflict":
-                                            self.print_verbose(
-                                                "conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(self.t))
+                                            self.print_verbose("conflict between " + str(r1.id) + " and " + str(r2.id) +
+                                                               " at t=" + str(self.t))
                                         elif conflict.name == "swap":
-                                            self.print_verbose(
-                                                "swapping conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(
-                                                    self.t))
+                                            self.print_verbose("swapping conflict between " + str(r1.id) + " and " +
+                                                               str(r2.id) + " at t=" + str(self.t))
                                         
                                         # both robots move -> both have to find a new plan
                                         # self.replan returns added length of new plan
-                                        dr1 = self.replan(r1, 1)
-                                        dr2 = self.replan(r2, 2)
+                                        dr1 = self.replan(r1)
+                                        dr2 = self.replan(r2)
             
                                         # choose which robot uses new plan
                                         # case 1: both robots are deadlocked
@@ -553,8 +562,8 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
                                         # here dr2 can still be -1 -> then dr2<=dr1 would be true
                                         # therefore the condition dr2!=-1 is needed
                                         elif (dr1 == -1) or (dr2 <= dr1 and dr2 != -1):
-                                            self.print_verbose(
-                                                "r" + str(r1.id) + " deadlocked or dr" + str(r2.id) + "<=dr" + str(r1.id))
+                                            self.print_verbose("r" + str(r1.id) + " deadlocked or dr" + str(r2.id) +
+                                                               "<=dr" + str(r1.id))
                                             # r1 continues using the old plan
                                             r1.use_old_plan()
                                             # r2 uses the new plan
@@ -562,8 +571,8 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
             
                                         # case 3: r2 is deadlocked or the new plan of r2 adds more time
                                         elif (dr2 == -1) or (dr1 < dr2):
-                                            self.print_verbose(
-                                                "r" + str(r2.id) + " deadlocked or dr" + str(r1.id) + "<=dr" + str(r2.id))
+                                            self.print_verbose("r" + str(r2.id) + " deadlocked or dr" + str(r1.id) +
+                                                               "<=dr" + str(r2.id))
                                             # r1 uses new plan
                                             self.change_plan(r1)
                                             # r2 continues using the old plan
@@ -587,11 +596,10 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
 
         if self.domain == "m":
             self.t -= 1
-       
-            
+
         return self.t
 
-    def replan(self, robot, out=0):
+    def replan(self, robot):
         """Helper function used in shortest replanning strategy
         finds a new plan and returns the added length
         Argument out for benchmarking output (to know which replannigs belong together)
@@ -622,14 +630,15 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
                  result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
         self.resolved = False
+
         super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
                          clingo_arguments)
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("crossing", instance, result_path)
 
-    def init_robot(self, id: int, x: int, y: int) -> None:
-        self.robots.append(RobotCrossing(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+    def init_robot(self, rid: int, x: int, y: int) -> None:
+        self.robots.append(RobotCrossing(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
                                          self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
 
     def run(self):
@@ -639,12 +648,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         The robot closest to a crossing dodges the other robot using the crossing
         This method is only used for swapping conflict, all other conflicts
         are solved by making one of the robots wait"""
-        # keep track of which robots we still have to check for conflicts
-
-
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
-         
             
             for r in self.robots:
                 # if the robot doesn't have a order or was in a deadlock it needs to find a new plan
@@ -654,15 +659,13 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                 else:
                     self.next_action_possible(r, r.next_action)
 
-
-
             self.resolved = True 
             while self.resolved:  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
                 conflicts = self.check_conflicts()
             
                 for conflict in conflicts:
-                    if conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
+                    if conflict.name == "swap":  # if there is a conflict the robot with the lower ID needs to replan
                         r1 = 0
                         r2 = 0
                         for r in self.robots:
@@ -671,8 +674,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                             if r.id == conflict.arguments[1].number:
                                 r2 = r
                         
-                        self.print_verbose(
-                            "swapping conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(self.t))
+                        self.print_verbose("swapping conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" +
+                                           str(self.t))
                         # if r1 isn't in a conflict but r2 is already dodging another robot
                         self.resolved = True
                         if (not r1.in_conflict) and r2.dodging and (not r1.replanned):
@@ -716,10 +719,9 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                                 r1 = r
                             if r.id == conflict.arguments[1].number:
                                 r2 = r
-                        
-                        
-                        self.print_verbose(
-                            "conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" + str(self.t))
+
+                        self.print_verbose("conflict between " + str(r1.id) + " and " + str(r2.id) + " at t=" +
+                                           str(self.t))
                         # the robot which moves and is not already in a conflict will wait
                         if (r1.next_action.name == "move") and (not r1.in_conflict):
                             self.add_wait(r1)
@@ -734,11 +736,6 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                             # (because if r1 isn't moving, r2 has to move as there is a conflict)
                             else:
                                 self.add_wait(r2)
-
-
-
-
-            # first check for swapping conflicts and solve them
 
             # then perform the actions
             for robot in self.robots:
@@ -903,9 +900,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         for all changed conflict partners are update and crossroad is used"""
         changed = self.get_nested_dodge1(r1, r2, None, [])
 
-        if changed != []:
+        if changed:
             r1_old_partners = self.update_conflict_partners(r1, r2)
-
             # add crossroad for all robots (this includes r1)
             for p in changed:
                 self.change_crossroad(p)
@@ -1090,7 +1086,7 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
 
         # check is next_pos is a node
         is_node = False
-        for [id, x, y] in self.nodes:
+        for [_, x, y] in self.nodes:
             if (next_pos[0] == x) and (next_pos[1] == y):
                 is_node = True
                 break
@@ -1102,8 +1098,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
 
         # check for moving onto a shelf which isn't the shelf of the robot
         if possible:
-            for [id, x, y] in self.shelves:
-                if (next_pos[0] == x) and (next_pos[1] == y) and (r.shelf != id):
+            for [sid, x, y] in self.shelves:
+                if (next_pos[0] == x) and (next_pos[1] == y) and (r.shelf != sid):
                     self.print_verbose("r" + str(r.id) + " would go onto shelf with move("
                                        + str(action.arguments[0].arguments[0].number) + ","
                                        + str(action.arguments[0].arguments[1].number) + ") at t=" + str(self.t))
@@ -1112,8 +1108,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
 
         # check for moving onto a station which isn't the one the robot needs to go to
         if possible:
-            for [id, x, y] in self.pickingstations:
-                if (next_pos[0] == x) and (next_pos[1] == y) and (r.order[2] != id):
+            for [pid, x, y] in self.pickingstations:
+                if (next_pos[0] == x) and (next_pos[1] == y) and (r.order[2] != pid):
                     self.print_verbose("r" + str(r.id) + " would go onto station with move("
                                        + str(action.arguments[0].arguments[0].number) + ","
                                        + str(action.arguments[0].arguments[1].number) + ") at t=" + str(self.t))
@@ -1136,24 +1132,33 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
                  result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
         self.performed_action: [int] = []
+
         super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
                          clingo_arguments)
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("prioritized", instance, result_path)
 
-    def init_robot(self, id: int, x: int, y: int) -> None:
-        self.robots.append(RobotPrioritized(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+    def init_robot(self, rid: int, x: int, y: int) -> None:
+        self.robots.append(RobotPrioritized(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
                                             self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
 
     def plan(self, robot: RobotPrioritized):
+        self.print_verbose("planning for robot" + str(robot.id))
         # collect plans from all other robots
         for r in self.robots:
             if robot != r:
+                self.print_verbose("collecting plan from robot" + str(r))
+                # r.get_plan() get an offset as the argument
+                # the offset is 1 if r has not yet performed an action in this timestep
+                # (as in this case r is one step behind robot)
+                # during initialisation the offset is always 0
                 plan = r.get_plan(1 if (r.id not in self.performed_action and self.t > 0) else 0)
                 if plan:
                     robot.add_plan(plan)
                 else:
+                    self.print_verbose("robot" + str(r) + "does not have a plan, current position " + str(r.pos) +
+                                       "will be blocked")
                     robot.block_pos((r.pos[0], r.pos[1]))
 
         super().plan(robot)
@@ -1164,9 +1169,13 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
             self.t += 1
+
             for robot in self.robots:
+                # perform action or find new plan
                 self.perform_action(robot)
+                # mark that robot performed an action
                 self.performed_action.append(robot.id)
+
             self.performed_action = []
 
         if self.domain == "m":
@@ -1176,18 +1185,11 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
 
 
 class PathfindDecentralizedTraffic(PathfindDecentralized):
-    def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
-                 result_path: str, external: bool, highways: bool, clingo_arguments: List[str]) -> None:
-        self.conflict_prg = None
-        self.conflict_encoding = "./encodings/conflicts-replace.lp"
-        super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
-                         clingo_arguments)
-
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("traffic", instance, result_path)
 
-    def init_robot(self, id: int, x: int, y: int) -> None:
-        self.robots.append(Robot(id, [x, y], self.encoding, self.domain, self.instance, self.external,
+    def init_robot(self, rid: int, x: int, y: int) -> None:
+        self.robots.append(Robot(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
                                  self.highwaysFlag, self.clingo_arguments, self.benchmark, self.benchmarker))
 
     def resolve_conflicts(self):
@@ -1196,7 +1198,7 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
 
         for conflict in conflicts:  # Conflict detection
             if conflict.name == "swap":
-                print("Error: Illegal swap detected: " + str(conflict), file=sys.stderr)
+                print_error("Error: illegal swapping conflict detected: " + str(conflict))
             else:
                 for r1 in self.robots:
                     if r1.id == conflict.arguments[0].number:
@@ -1210,7 +1212,6 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
 
             # perform all actions
             for robot in self.robots:
-                # print("r" + str(robot.id) + " at "+ str(robot.pos) + " at " + str(self.t))
                 self.perform_action(robot)
 
         if self.domain == "m":
@@ -1239,10 +1240,10 @@ if __name__ == "__main__":
                         default=False, action="store_true")
     parser.add_argument("-r", "--results", help="use custom directory for the benchmarking results (default: "
                                                 "'./results')", default='./results/', type=str)
-
-    parser.add_argument("-e", "--external", help="enables use of external atoms (only for sequential, shortest and "
-                                                 "crossing strategy)",
-                        default=False, action="store_true")
+    # external not supported anymore
+    # parser.add_argument("-e", "--external", help="enables use of external atoms (only for sequential, shortest and "
+    #                                              "crossing strategy)",
+    #                     default=False, action="store_true")
     parser.add_argument("-H", "--Highways", help="generate highway tuples if they are not given in the instance",
                         default=False, action="store_true")
     parser.add_argument("--debug", help="enables clingo warnings", default=False, action="store_true")
@@ -1260,19 +1261,17 @@ if __name__ == "__main__":
     # Initialize the Pathfind object
     if args.strategy == 'sequential':
         pathfind = PathfindDecentralizedSequential(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
-                                                   args.benchmark, args.results, args.external, args.Highways,
+                                                   args.benchmark, args.results, False, args.Highways,
                                                    clingo_args)
     elif args.strategy == 'shortest':
         pathfind = PathfindDecentralizedShortest(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
-                                                 args.benchmark, args.results, args.external, args.Highways,
+                                                 args.benchmark, args.results, False, args.Highways,
                                                  clingo_args)
     elif args.strategy == 'crossing':
         pathfind = PathfindDecentralizedCrossing(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
-                                                 args.benchmark, args.results, args.external, args.Highways,
+                                                 args.benchmark, args.results, False, args.Highways,
                                                  clingo_args)
     elif args.strategy == 'prioritized':
-        if args.external:
-            print("option --external ignored for prioritized strategy", file=sys.stderr)
         if args.domain == "m":
             encoding = "./encodings/pathfindPrioritized-m.lp"
         else:
@@ -1281,9 +1280,7 @@ if __name__ == "__main__":
                                                     args.verbose, args.benchmark, args.results, False, args.Highways,
                                                     clingo_args)
     elif args.strategy == 'traffic':
-        print("traffic strategy needs special instance in order to work correctly", file=sys.stderr)
-        if args.external:
-            print("option --external ignored for traffic strategy", file=sys.stderr)
+        print_error("traffic strategy needs special instance in order to work correctly")
         pathfind = PathfindDecentralizedTraffic(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                 args.benchmark, args.results, False, args.Highways, clingo_args)
     elif args.strategy == 'centralized':
