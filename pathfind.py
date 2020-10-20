@@ -180,20 +180,24 @@ class Pathfind(object):
 class PathfindCentralized(Pathfind):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool, benchmark: bool,
                  result_path: str, highways: bool, clingo_arguments: List[str]) -> None:
+        self.assign_prg = clingo.Control(clingo_args)
         self.model = None
 
         super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, highways,
                          clingo_arguments)
 
         self.assign_orders()
+        self.assign_shelves()
 
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("centralized", instance, result_path)
 
     def assign_orders(self) -> None:
         for rid, _, _ in self.robots:
-            self.prg.add("base", [], "order(" + str(self.orders[0][1]) + ", " + str(self.orders[0][2]) + ", " +
-                         str(self.orders[0][0]) + ", " + str(rid) + ").")
+            atom = "order(" + str(self.orders[0][1]) + ", " + str(self.orders[0][2]) + ", " + str(self.orders[0][0]) + \
+                   ", " + str(rid) + ")."
+            self.prg.add("base", [], atom)
+            self.assign_prg.add("base", [], atom)
             del self.orders[0]
 
     def init_robot(self, rid: int, x: int, y: int) -> None:
@@ -206,6 +210,20 @@ class PathfindCentralized(Pathfind):
             inits.append("init(object(robot," + str(rid) + "),value(at,(" + str(x) + "," + str(y) + ")))")
 
         return inits
+
+    def assign_shelves(self):
+        self.assign_prg.load(self.instance)
+        self.assign_prg.load("./encodings/goals.lp")
+
+        self.assign_prg.ground([("base", []), ("centralized", [])])
+
+        assignment = self.solve(self.assign_prg, "assignment")
+        print_error("assignment: " + str(assignment))
+
+        for atom in assignment:
+            if atom.name == "goal":
+                if (atom.arguments[2] == 1) or (self.domain == "b"):
+                    self.prg.add("base", [], str(atom) + ".")
 
     def run(self):
         self.t = 0
@@ -1301,7 +1319,6 @@ if __name__ == "__main__":
         pathfind = PathfindDecentralizedTraffic(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                 args.benchmark, args.results, False, args.Highways, clingo_args)
     elif args.strategy == 'centralized':
-        # TODO: update shelf assignment
         if args.domain == "m":
             encoding = "./encodings/pathfindCentralized-m.lp"
         else:
