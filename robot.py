@@ -319,6 +319,38 @@ class Robot(object):
                 else:
                     # All other positions are considered free
                     self.state[i][j] = 1
+                    
+    def set_goals(self):
+        self.prg_goals = clingo.Control(self.clingo_arguments)
+        self.prg_goals.load(self.instance)
+        self.prg_goals.load("./encodings/goals.lp")
+        
+        
+        self.prg_goals.add("base", [], "start((" + str(self.pos[0]) + "," + str(self.pos[1]) + ")," + str(self.id) + ").")
+        self.prg_goals.add("base", [], "robot(" + str(self.id) + ").")
+        for shelf in self.available_shelves:
+            self.prg_goals.add("base", [], "available(" + str(shelf) + ").")
+        
+        self.prg_goals.add("base", [], "order(" + str(self.order[1]) + ", " + str(self.order[2]) + "," + str(
+            self.order[0]) + "," + str(self.id) + ").")
+        
+        self.prg_goals.ground([("base", [])])
+        found_model_goals = False
+        with self.prg_goals.solve(yield_=True) as h:
+            for m in h:
+                found_model_goals = True
+                opt = m
+            if found_model_goals:
+                for atom in opt.symbols(shown=True):
+                    if atom.name == "chooseShelf":
+                        self.shelf = atom.arguments[0].number
+                    if atom.name == "goal":
+                        if atom.arguments[2].number == 1:
+                            self.goalA = (atom.arguments[0].arguments[0].number,atom.arguments[0].arguments[1].number)
+                        if atom.arguments[2].number == 2:
+                            self.goalB = (atom.arguments[0].arguments[0].number,atom.arguments[0].arguments[1].number)
+                        if atom.arguments[2].number == 3:
+                            self.goalC = (atom.arguments[0].arguments[0].number,atom.arguments[0].arguments[1].number)
 
 
 class RobotSequential(Robot):
@@ -569,6 +601,8 @@ class RobotPrioritized(Robot):
         # similar to Robot.solve() / Robot.find_new_plan()
         # but needs to add the additional input to the program
         # and clear additional inputs after solving
+        self.model = []
+        
         self.add_inputs()
 
         for atom in self.additional_inputs:

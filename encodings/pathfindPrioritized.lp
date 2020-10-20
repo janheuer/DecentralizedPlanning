@@ -3,7 +3,6 @@ robot(r).
 
 #program base.
 #include "./input.lp".
-#include "./goals.lp".
 #include "./movement.lp".
 #include "./collision.lp".
 #include "./action.lp".
@@ -13,3 +12,5 @@ robot(r).
 :- pos(C,R,_), blockAll(C), robot(R).
 
 :- robot(R), putdown(R,T), move(_,R,T'), T'>T.
+
+
