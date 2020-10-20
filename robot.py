@@ -20,6 +20,7 @@ class Robot(object):
         self.goalA = (-1, -1)
         self.goalB = (-1, -1)
         self.goalC = (-1, -1)
+        self.current_goal = 0
 
         self.next_pos = [-1, -1]
 
@@ -134,13 +135,16 @@ class Robot(object):
 
             # add the goals
             self.prg.add("base", [], "goal(" + str(self.goalA) + "," + str(self.id) + ", 1).")
+            self.current_goal = 1
             if self.pickupdone:
                 self.prg.add("base", [], "pickup(" + str(self.id) + ",0).")
                 self.prg.add("base", [], "goal(" + str(self.goalB) + "," + str(self.id) + ", 2).")
+                self.current_goal = 2
             if self.deliverdone:
                 self.prg.add("base", [], "deliver(" + str(self.order[1]) + "," + str(self.order[0]) + "," +
                              str(self.id) + ",0).")
                 self.prg.add("base", [], "goal(" + str(self.goalC) + "," + str(self.id) + ", 3).")
+                self.current_goal = 3
 
             for i in range(len(self.state)):
                 for j in range(len(self.state[0])):

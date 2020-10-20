@@ -390,10 +390,16 @@ class PathfindDecentralized(Pathfind):
                 self.print_verbose("robot" + str(robot.id) + " planning order id=" + str(robot.order[0]) + " product="
                                    + str(robot.order[1]) + " at t=" + str(self.t))
             else:
-                self.print_verbose("robot" + str(robot.id) + " planning order id=" + str(robot.order[0]) + " product="
-                                   + str(robot.order[1]) + " station=" + str(robot.order[2]) + " at t=" + str(self.t))
+                self.print_verbose("robot" + str(robot.id) + " planning step 1 order id=" + str(robot.order[0]) +
+                                   " product=" + str(robot.order[1]) + " station=" + str(robot.order[2]) + " at t=" +
+                                   str(self.t))
         else:
-            self.print_verbose("robot" + str(robot.id) + " replanning at t=" + str(self.t))
+            if robot.pickupdone and robot.current_goal == 1:
+                self.print_verbose("robot" + str(robot.id) + " planning step 2 at t=" + str(self.t))
+            elif robot.deliverdone and robot.current_goal == 2:
+                self.print_verbose("robot" + str(robot.id) + " planning step 3 at t=" + str(self.t))
+            else:
+                self.print_verbose("robot" + str(robot.id) + " replanning at t=" + str(self.t))
 
         found_plan = robot.plan()
 
@@ -462,13 +468,9 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 for conflict in self.check_conflicts_robot(robot):
                     if conflict.name in ["swap", "conflict"]:
                         if robot.id == conflict.arguments[0].number or robot.id == conflict.arguments[1].number:
-                            if not self.plan(robot):
-                                # action not possible and couldn't find a new plan -> deadlocked, no action
-                                continue
+                            self.plan(robot)
                     if conflict.name == "conflictW":
-                            if not self.plan(robot):
-                                # action not possible and couldn't find a new plan -> deadlocked, no action
-                                continue
+                        self.plan(robot)
 
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
                 self.perform_action(robot)
@@ -487,7 +489,6 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         self.prg.load("./encodings/conflicts.lp")
 
         for r in self.robots:
-            # TODO: should be next_action for all robots ?
             if r != robot:
                 self.prg.add("base", [], str("wait(" + str(r.id) + ")."))
             else: 
@@ -1299,12 +1300,10 @@ if __name__ == "__main__":
 
     # Initialize the Pathfind object
     if args.strategy == 'sequential':
-        # TODO: test sequential
         pathfind = PathfindDecentralizedSequential(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                    args.benchmark, args.results, False, args.Highways,
                                                    clingo_args)
     elif args.strategy == 'shortest':
-        # TODO: test shortest
         pathfind = PathfindDecentralizedShortest(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                  args.benchmark, args.results, False, args.Highways,
                                                  clingo_args)
