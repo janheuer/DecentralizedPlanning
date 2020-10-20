@@ -1,8 +1,13 @@
+from benchmarker import solve
+
+from typing import List
+
 import clingo
 
 
 class Robot(object):
-    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments):
+    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                 benchmarker):
         """Initialize the robot:
         Data structure to save inputs
         Clingo object"""
@@ -35,6 +40,8 @@ class Robot(object):
         self.external = external
         self.highways = highways
         self.clingo_arguments = clingo_arguments
+        self.benchmark = benchmark
+        self.benchmarker = benchmarker
 
         # when internal is used clingo object initialized before solve
         if self.external:
@@ -53,6 +60,12 @@ class Robot(object):
         self.plan_length = -1
 
         self.next_action = clingo.Function("", [])
+
+    def solve(self, prg: clingo.Control, type: str) -> List[clingo.Symbol]:
+        if self.benchmark:
+            return self.benchmarker.solve(prg, type)
+        else:
+            return solve(prg)
 
     def find_new_plan(self):
         """Makes the robot solve for a new plan and keeps the old plan saved
@@ -122,25 +135,20 @@ class Robot(object):
 
         self.start = list(self.pos)
         self.plan_finished = False
-        
-        # Solving; Due to the #minimize{}. the last model we find will be optimal
+
         found_model = False
-        with self.prg.solve(yield_=True) as h:
-            for m in h:
-                found_model = True
-                opt = m
-            if found_model:
-                for atom in opt.symbols(shown=True):
-                    self.model.append(atom)
-                    if atom.name == "chooseShelf":
-                        self.shelf = atom.arguments[0].number
-                    elif (atom.name == "putdown" and self.domain == "b") or \
-                         (atom.name == "pickup"):
-                         if self.plan_length < atom.arguments[1].number:
-                            self.plan_length = atom.arguments[1].number
-                    elif (atom.name == "deliver" and self.domain == "b"):
-                        if self.plan_length < atom.arguments[3].number:
-                            self.plan_length = atom.arguments[3].number
+
+        self.model = self.solve(self.prg, "plan")
+        if self.model:
+            found_model = True
+            for atom in self.model:
+                if atom.name == "chooseShelf":
+                    self.shelf = atom.arguments[0].number
+                elif (atom.name == "putdown" and self.domain == "b") or (atom.name == "pickup"):
+                    self.plan_length = atom.arguments[1].number
+                elif (atom.name == "deliver" and self.domain == "b"):
+                    if self.plan_length < atom.arguments[3].number:
+                        self.plan_length = atom.arguments[3].number
 
         if not found_model:
             self.plan_length = -1
@@ -161,7 +169,7 @@ class Robot(object):
         self.get_next_action()
         self.t = 1
 
-    def solve(self):
+    def plan(self):
         """Finds a new plan and immediately uses it (unless there is a deadlock)"""
         found_model = self.find_new_plan()
         if found_model:
@@ -333,12 +341,16 @@ class RobotShortest(Robot):
 
 
 class RobotCrossing(Robot):
-    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments):
-        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments)
+    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                 benchmarker):
+        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                         benchmarker)
 
         """Additional initialization for crossing strategy"""
         self.using_crossroad = False
         self.crossroad = None
+        self.cross_model = []
+        self.cross_length = -1
 
         self.in_conflict = False
         self.dodging = False
@@ -389,21 +401,14 @@ class RobotCrossing(Robot):
                 self.crossroad.add("base", [], "block((" + str(cross[0]) + ", " + str(cross[1]) + ")).")
             self.crossroad.ground([("base", []), ("noExternal", [self.id])])
 
-        self.cross_model = []
-
-        found_model = False
-        with self.crossroad.solve(yield_=True) as h:
-            for m in h:
-                found_model = True
-                opt = m
-            if found_model:
-                for atom in opt.symbols(shown=True):
-                    if atom.name == "goal":
-                        self.cross_length = atom.arguments[0].number
-                    else:
-                        self.cross_model.append(atom)
-            else:
-                self.cross_length = -1
+        self.cross_model = self.solve(self.crossroad, "conflict")
+        if self.cross_model:
+            for atom in self.cross_model:
+                if atom.name == "goal":
+                    self.cross_length = atom.arguments[0].number
+                    self.cross_model.remove(atom)
+        else:
+            self.cross_length = -1
 
         # cross_model needs to be sorted in ascending order
         self.cross_model.sort(key=lambda atom: atom.arguments[2].number)
@@ -541,13 +546,15 @@ class RobotCrossing(Robot):
 
 
 class RobotPrioritized(Robot):
-    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments):
-        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments)
+    def __init__(self, id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                 benchmarker):
+        super().__init__(id, start, encoding, domain, instance, external, highways, clingo_arguments, benchmark,
+                         benchmarker)
 
         self.additional_inputs = []
         self.blocked_positions = []
 
-    def solve(self):
+    def plan(self):
         # similar to Robot.solve() / Robot.find_new_plan()
         # but needs to add the additional input to the program
         # and clear additional inputs after solving
@@ -598,20 +605,16 @@ class RobotPrioritized(Robot):
         self.start = list(self.pos)
         self.plan_finished = False
 
-        # Solving; Due to the #minimize{}. the last model we find will be optimal
-        found_model = False
-        with self.prg.solve(yield_=True) as h:
-            for m in h:
-                found_model = True
-                opt = m
-            if found_model:
-                for atom in opt.symbols(shown=True):
-                    self.model.append(atom)
-                    if atom.name == "chooseShelf":
-                        self.shelf = atom.arguments[0].number
-                    elif (atom.name == "putdown" and self.domain == "b") or \
-                         (atom.name == "pickup" and self.domain == "m"):
-                        self.plan_length = atom.arguments[1].number
+        self.model = self.solve(self.prg, "plan")
+        if self.model:
+            found_model = True
+            for atom in self.model:
+                if atom.name == "chooseShelf":
+                    self.shelf = atom.arguments[0].number
+                elif (atom.name == "putdown" and self.domain == "b") or (atom.name == "pickup" and self.domain == "m"):
+                    self.plan_length = atom.arguments[1].number
+        else:
+            found_model = False
 
         if not found_model:
             self.plan_length = -1
