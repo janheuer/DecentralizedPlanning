@@ -396,7 +396,6 @@ class PathfindDecentralized(Pathfind):
     def add_wait(self, r):
         """Add a wait action to the robots plan"""
         self.print_verbose("r" + str(r.id) + " waits")
-        self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 1
         r.wait()
         self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
         
