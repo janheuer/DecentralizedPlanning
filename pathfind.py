@@ -383,7 +383,7 @@ class PathfindDecentralized(Pathfind):
         """
         if robot.shelf == -1:  # robot doesn't have a order assigned
             if not self.assign_order(robot):  # try to assign a order
-                print_error("couldn't assign order")
+                print_error("couldn't assign order for robot" + str(robot.id) + " at t="+str(self.t))
                 return False  # no order can be assigned
             
             if self.domain == "m":
@@ -438,9 +438,7 @@ class PathfindDecentralized(Pathfind):
             for j in range(len(self.state[0])):
                 self.state[i][j] = 1
 
-            
-            
-            
+
 class PathfindDecentralizedSequential(PathfindDecentralized):
     def init_benchmarker(self, instance: str, result_path: str) -> None:
         self.benchmarker = Benchmarker("sequential", instance, result_path)
@@ -1185,15 +1183,14 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
 
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
-    
+            """
             conflicts = self.check_conflicts()
             for conflict in conflicts:
                 for robot in self.robots:
                     if conflict.arguments[0].number == robot.id:
                         print(conflict)
                         self.plan(robot)
-                
-                
+
             for r1 in self.robots:
                 for r2 in self.robots:
                     if r1 != r2 and r1.pos == r2.pos:
@@ -1202,11 +1199,7 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
                     if r1 != r2 and r1.next_pos == r2.pos and r2.next_pos == r1.pos:
                         print("Unexpected swap")
                         sys.exit()
-        
-            if self.timeout < time() - self.start_time and self.timeout != 0:
-                print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
-                sys.exit(0)
-
+            """
             self.t += 1
 
             for robot in self.robots:
@@ -1329,13 +1322,11 @@ if __name__ == "__main__":
                                                     args.verbose, args.benchmark, args.results, False, args.Highways,
                                                     clingo_args)
     elif args.strategy == 'traffic':
-        # TODO: test traffic
         print_error("Warning: traffic strategy needs special instance in order to work correctly")
         pathfind = PathfindDecentralizedTraffic(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                 args.benchmark, args.results, False, args.Highways, clingo_args)
     elif args.strategy == 'centralized':
         # TODO: update shelf assignment
-        # TODO: test centralized
         if args.domain == "m":
             encoding = "./encodings/pathfindCentralized-m.lp"
         else:

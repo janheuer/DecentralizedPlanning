@@ -13,4 +13,4 @@ robot(r).
 
 :- robot(R), putdown(R,T), move(_,R,T'), T'>T.
 
-
+goal(C,R,3) :- goal(C,R,1), goal(_,R,2).
