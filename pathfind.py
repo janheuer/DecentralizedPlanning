@@ -291,6 +291,9 @@ class PathfindDecentralized(Pathfind):
             # 2) in the last timestep no order could be assigned
             # 3) robot is in a deadlock
             self.plan(robot)
+        elif name == "pickup" or name == "deliver":
+            self.print_action(robot.id, name, args, self.t)
+            self.plan(robot)
         else:
             self.print_action(robot.id, name, args, self.t)
         if self.domain == "m":
@@ -436,7 +439,15 @@ class PathfindDecentralized(Pathfind):
                     conflicts.append(atom)
         return conflicts
 
+    def reset_state(self):
+        """Sets all values in the state array to 1 (empty)"""
+        for i in range(len(self.state)):
+            for j in range(len(self.state[0])):
+                self.state[i][j] = 1
 
+            
+            
+            
 class PathfindDecentralizedSequential(PathfindDecentralized):
     def __init__(self, instance: str, encoding: str, domain: str, model_output: bool, verbose: bool,
                  verbose_out: TextIO, benchmark: bool, result_path: str, external: bool, highways: bool, timeout: int,
@@ -471,7 +482,7 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                 print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
                 sys.exit(0)
             self.t += 1
-
+            
             
             for robot in self.robots:
                 robot.update_state(self.state)
@@ -479,10 +490,11 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
                     if conflict.name == "swap" or conflict.name == "conflict":
                         if robot.id == conflict.arguments[0].number or robot.id == conflict.arguments[1].number :
                             if not self.plan(robot):
+                                # action not possible and couldn't find a new plan -> deadlocked, no action
                                 continue
                     if conflict.name == "conflictW":
-                            robot.update_state(self.state)
                             if not self.plan(robot):
+                                # action not possible and couldn't find a new plan -> deadlocked, no action
                                 continue
                 self.state[robot.pos[0] - 1][robot.pos[1] - 1] = 1  # mark old position as free
                 self.perform_action(robot)
@@ -504,7 +516,7 @@ class PathfindDecentralizedSequential(PathfindDecentralized):
         self.prg.load("./encodings/conflicts.lp")
         for r in self.robots:
             if r != robot:
-                self.prg.add("base", [], str("waits(" + str(r.id) + ")."))
+                self.prg.add("base", [], str("wait(" + str(r.id) + ")."))
             else: 
                 if r.next_action != clingo.Function("", []):
                     self.prg.add("base", [], str(r.next_action) + ".")
@@ -562,7 +574,8 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
 
             if self.benchmark:
                 stime = 0
-
+                
+                
             # check that every robot has a plan
             for r in self.robots:
                 if self.benchmark:
@@ -573,8 +586,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
                     self.plan(r)
 
             # unmark all old positions
-            for r in self.robots:
-                self.state[r.pos[0] - 1][r.pos[1] - 1] = 1
+            self.reset_state()
             # mark all new positions
             for r in self.robots:
                 self.state[r.next_pos[0] - 1][r.next_pos[1] - 1] = 0
@@ -582,7 +594,7 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
             self.resolved = True 
             while self.resolved:  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
-                conflicts = super().check_conflicts()
+                conflicts = self.check_conflicts()
 
                 for conflict in conflicts:  # Conflict detection
                     self.resolved = True
@@ -711,7 +723,6 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         Also adds robot to the list of robots which have to be checked for conflicts
         and marks the new next_pos of the robot
         """
-        self.state[robot.next_pos[0] - 1][robot.next_pos[1] - 1] = 1
         robot.use_new_plan()
         self.resolve = True
         self.state[robot.next_pos[0] - 1][robot.next_pos[1] - 1] = 0
@@ -762,12 +773,12 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                 else:
                     self.next_action_possible(r, r.next_action)
 
-
+        
 
             self.resolved = True 
             while(self.resolved == True):  # Needs to recheck for conflicts if a robot replans
                 self.resolved = False
-                conflicts = super().check_conflicts()
+                conflicts = self.check_conflicts()
             
                 for conflict in conflicts:
                     if conflict.name == "swap": # if there is a conflict the robot with the lower ID needs to replan
@@ -1306,6 +1317,24 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
 
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
+        
+            conflicts = self.check_conflicts()
+            for conflict in conflicts:
+                for robot in self.robots:
+                    if conflict.arguments[0].number == robot.id:
+                        print(conflict)
+                        self.plan(robot)
+                
+                
+            for r1 in self.robots:
+                for r2 in self.robots:
+                    if r1 != r2 and r1.pos == r2.pos:
+                        print("Unexpected conflict")
+                        sys.exit()
+                    if r1 != r2 and r1.next_pos == r2.pos and r2.next_pos == r1.pos:
+                        print("Unexpected swap")
+                        sys.exit()
+        
             if self.timeout < time() - self.start_time and self.timeout != 0:
                 print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
                 sys.exit(0)
@@ -1354,12 +1383,13 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
 
     def resolve_conflicts(self):
         # load encoding which computes conflicts and solves them by adding wait actions
-        conflicts = super().check_conflicts()
+        conflicts = self.check_conflicts()
 
         for conflict in conflicts:  # Conflict detection
             if conflict.name == "swap":
                 print("Error: Illegal swap detected:")
                 print(conflict)
+                sys.exit()
             for r1 in self.robots:
                 if r1.id == conflict.arguments[0].number:
                     self.add_wait(r1)
@@ -1372,11 +1402,12 @@ class PathfindDecentralizedTraffic(PathfindDecentralized):
                 print("Timeout after " + str(time() - self.start_time) + "s", file=sys.stderr)
                 sys.exit(0)
             self.t += 1
+            
+
             # find and solve all conflicts for the current timestep
             self.resolve_conflicts()
             # perform all actions
             for robot in self.robots:
-                print("r" + str(robot.id) + " at "+ str(robot.pos) + " at " + str(self.t))
                 self.perform_action(robot)
                 
 
