@@ -3,7 +3,6 @@ from benchmarker import solve
 from typing import List
 
 import clingo
-import sys
 
 
 class Robot(object):
@@ -194,7 +193,6 @@ class Robot(object):
         self.model = []
 
         if not self.add_inputs():
-            print("test", file=sys.stderr)
             return False
 
         if not self.external:

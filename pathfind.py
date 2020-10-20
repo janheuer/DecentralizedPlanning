@@ -383,7 +383,6 @@ class PathfindDecentralized(Pathfind):
         """
         if robot.shelf == -1:  # robot doesn't have a order assigned
             if not self.assign_order(robot):  # try to assign a order
-                print_error("couldn't assign order for robot" + str(robot.id) + " at t="+str(self.t))
                 return False  # no order can be assigned
             
             if self.domain == "m":
@@ -404,11 +403,9 @@ class PathfindDecentralized(Pathfind):
         found_plan = robot.plan()
 
         if found_plan:  # if the robot found a plan the shelf has to be reserved
-            print_error("found a plan")
             self.reserve_shelf(robot.shelf)
             return True
         else:  # robot couldn't find a plan
-            print_error("couldn't find a plan")
             if robot.shelf == -1:
                 # robot couldn't start planning the order (because he deadlocked in his start position)
                 # release the order so that other robots can try to plan it
@@ -727,9 +724,6 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
                                 self.add_crossroad(r2, r1)
                                 
                     else:  # if another robots waits or performs an action the robot should wait
-                        # TODO: fix ?
-                        r1 = 0
-                        r2 = 0
                         for r in self.robots:
                             if r.id == conflict.arguments[0].number:
                                 r1 = r
@@ -1184,23 +1178,6 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
 
     def run(self):
         while self.orders != [] or self.orders_in_delivery != []:
-            """
-            conflicts = self.check_conflicts()
-            for conflict in conflicts:
-                for robot in self.robots:
-                    if conflict.arguments[0].number == robot.id:
-                        print(conflict)
-                        self.plan(robot)
-
-            for r1 in self.robots:
-                for r2 in self.robots:
-                    if r1 != r2 and r1.pos == r2.pos:
-                        print("Unexpected conflict")
-                        sys.exit()
-                    if r1 != r2 and r1.next_pos == r2.pos and r2.next_pos == r1.pos:
-                        print("Unexpected swap")
-                        sys.exit()
-            """
             self.t += 1
 
             for robot in self.robots:
@@ -1308,7 +1285,6 @@ if __name__ == "__main__":
                                                  args.benchmark, args.results, False, args.Highways,
                                                  clingo_args)
     elif args.strategy == 'crossing':
-        # TODO: test corssing
         pathfind = PathfindDecentralizedCrossing(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
                                                  args.benchmark, args.results, False, args.Highways,
                                                  clingo_args)
