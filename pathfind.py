@@ -218,7 +218,6 @@ class PathfindCentralized(Pathfind):
         self.assign_prg.ground([("base", []), ("centralized", [])])
 
         assignment = self.solve(self.assign_prg, "assignment")
-        print_error("assignment: " + str(assignment))
 
         for atom in assignment:
             if atom.name == "goal":
