@@ -26,3 +26,10 @@ distTT(D) :- #sum{DI, R : distT(DI, R)} = D.
 
 #show goal/3.
 #show chooseShelf/2.
+
+#program centralized.
+start(C,R) :- init(object(robot,R),value(at,C)).
+robot(R) :- init(object(robot,R),value(at,_)).
+available(N) :- init(object(shelf,N),value(at,_)).
+
+:- chooseShelf(N,R1), chooseShelf(N,R2), R1 < R2.
