@@ -30,7 +30,7 @@ robot(r).
 
 #program base.
 #include "./input.lp".
-#include "./goals.lp".
+%#include "./goals.lp".
 #include "./movement.lp".
 #include "./action.lp".
 #include "./optimization.lp".
