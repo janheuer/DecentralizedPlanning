@@ -323,7 +323,8 @@ class PathfindDecentralized(Pathfind):
             self.plan(robot)
         elif name == "pickup" or name == "deliver":
             self.print_action(robot.id, name, args, self.t)
-            self.plan(robot)
+            if self.domain == "b":
+                self.plan(robot)
         else:
             self.print_action(robot.id, name, args, self.t)
 
