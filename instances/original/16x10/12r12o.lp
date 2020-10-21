@@ -261,6 +261,8 @@ init(object(highway, 142), value(at, (14, 9))).
 init(object(highway, 143), value(at, (15, 9))).
 init(object(highway, 144), value(at, (16, 9))).
 init(object(highway, 150), value(at, (6, 10))).
+init(object(highway, 158), value(at, (14, 10))).
+init(object(highway, 159), value(at, (15, 10))).
 init(object(highway, 160), value(at, (16, 10))).
 init(object(pickingStation,1), value(at,(4,1))).
 init(object(pickingStation,2), value(at,(8,1))).
@@ -325,8 +327,6 @@ init(object(robot,9), value(at,(10,10))).
 init(object(robot,10), value(at,(11,10))).
 init(object(robot,11), value(at,(12,10))).
 init(object(robot,12), value(at,(13,10))).
-init(object(robot,13), value(at,(14,10))).
-init(object(robot,14), value(at,(15,10))).
 
 init(object(product,1),value(on,(16,10))).
 init(object(order,1),value(line,(1,1))).
@@ -375,11 +375,3 @@ init(object(order,11),value(pickingStation,2)).
 init(object(product,12),value(on,(11,10))).
 init(object(order,12),value(line,(12,1))).
 init(object(order,12),value(pickingStation,1)).
-
-init(object(product,13),value(on,(12,10))).
-init(object(order,13),value(line,(13,1))).
-init(object(order,13),value(pickingStation,1)).
-
-init(object(product,14),value(on,(35,10))).
-init(object(order,14),value(line,(14,1))).
-init(object(order,14),value(pickingStation,2)).

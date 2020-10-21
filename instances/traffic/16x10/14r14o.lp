@@ -341,10 +341,6 @@ init(object(highway,142),value(at,(14,9))).
 init(object(highway,143),value(at,(15,9))). 
 init(object(highway,144),value(at,(16,9))). 
 init(object(highway,150),value(at,(6,10))). 
-init(object(highway,156),value(at,(12,10))). 
-init(object(highway,157),value(at,(13,10))). 
-init(object(highway,158),value(at,(14,10))). 
-init(object(highway,159),value(at,(15,10))). 
 init(object(highway,160),value(at,(16,10))). 
 init(object(pickingStation,1),value(at,(4,1))). 
 init(object(pickingStation,2),value(at,(8,1))). 
@@ -719,10 +715,6 @@ nextto((13,6),(1,0),(14,6)).
 nextto((14,6),(1,0),(15,6)). 
 nextto((15,6),(1,0),(16,6)). 
 nextto((6,10),(1,0),(7,10)). 
-nextto((12,10),(1,0),(13,10)). 
-nextto((13,10),(1,0),(14,10)). 
-nextto((14,10),(1,0),(15,10)). 
-nextto((15,10),(1,0),(16,10)). 
 nextto((1,10),(1,0),(2,10)). 
 nextto((2,10),(1,0),(3,10)). 
 nextto((3,10),(1,0),(4,10)). 
@@ -732,4 +724,8 @@ nextto((7,10),(1,0),(8,10)).
 nextto((8,10),(1,0),(9,10)). 
 nextto((9,10),(1,0),(10,10)). 
 nextto((10,10),(1,0),(11,10)). 
-nextto((11,10),(1,0),(12,10)).
+nextto((11,10),(1,0),(12,10)). 
+nextto((12,10),(1,0),(13,10)). 
+nextto((13,10),(1,0),(14,10)). 
+nextto((14,10),(1,0),(15,10)). 
+nextto((15,10),(1,0),(16,10)).
