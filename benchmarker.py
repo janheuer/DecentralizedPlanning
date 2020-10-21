@@ -19,8 +19,8 @@ def solve(prg: clingo.Control) -> List[clingo.Symbol]:
 
 
 class Benchmarker(object):
-    def __init__(self, strategy: str, instance: str, result_path: str) -> None:
-        self.result_path: str = result_path + "/" + strategy + "/" + instance[:-3] + "/"
+    def __init__(self, strategy: str, instance: str, domain: str, result_path: str) -> None:
+        self.result_path: str = result_path + "/" + strategy + "/" + domain + "/" + instance[:-3] + "/"
         Path(self.result_path).mkdir(parents=True, exist_ok=True)
 
         self.counter: int = 0

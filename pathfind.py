@@ -28,7 +28,7 @@ class Pathfind(object):
 
         self.benchmarker: Benchmarker = None
         if self.benchmark:
-            self.init_benchmarker(instance, result_path)
+            self.init_benchmarker(instance, domain, result_path)
 
         self.nodes = None
         self.highways = None
@@ -113,7 +113,7 @@ class Pathfind(object):
         # implemented in subclasses in order to use respective robot class
         pass
 
-    def init_benchmarker(self, instance: str, result_path: str) -> None:
+    def init_benchmarker(self, instance: str, domain: str, result_path: str) -> None:
         # implemented in subclasses as the path to save benchmark results depends on the strategy
         pass
 
@@ -189,8 +189,8 @@ class PathfindCentralized(Pathfind):
         self.assign_orders()
         self.assign_shelves()
 
-    def init_benchmarker(self, instance: str, result_path: str) -> None:
-        self.benchmarker = Benchmarker("centralized", instance, result_path)
+    def init_benchmarker(self, instance: str, domain: str, result_path: str) -> None:
+        self.benchmarker = Benchmarker("centralized", instance, domain, result_path)
 
     def assign_orders(self) -> None:
         for rid, _, _ in self.robots:
@@ -461,8 +461,8 @@ class PathfindDecentralized(Pathfind):
 
 
 class PathfindDecentralizedSequential(PathfindDecentralized):
-    def init_benchmarker(self, instance: str, result_path: str) -> None:
-        self.benchmarker = Benchmarker("sequential", instance, result_path)
+    def init_benchmarker(self, instance: str, domain: str, result_path: str) -> None:
+        self.benchmarker = Benchmarker("sequential", instance, domain, result_path)
 
     def init_robot(self, rid: int, x: int, y: int) -> None:
         self.robots.append(RobotSequential(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
@@ -524,8 +524,8 @@ class PathfindDecentralizedShortest(PathfindDecentralized):
         super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
                          clingo_arguments)
 
-    def init_benchmarker(self, instance: str, result_path: str) -> None:
-        self.benchmarker = Benchmarker("shortest", instance, result_path)
+    def init_benchmarker(self, instance: str, domain: str, result_path: str) -> None:
+        self.benchmarker = Benchmarker("shortest", instance, domain, result_path)
 
     def init_robot(self, rid: int, x: int, y: int) -> None:
         self.robots.append(RobotShortest(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
@@ -664,8 +664,8 @@ class PathfindDecentralizedCrossing(PathfindDecentralized):
         super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
                          clingo_arguments)
 
-    def init_benchmarker(self, instance: str, result_path: str) -> None:
-        self.benchmarker = Benchmarker("crossing", instance, result_path)
+    def init_benchmarker(self, instance: str, domain: str, result_path: str) -> None:
+        self.benchmarker = Benchmarker("crossing", instance, domain, result_path)
 
     def init_robot(self, rid: int, x: int, y: int) -> None:
         self.robots.append(RobotCrossing(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
@@ -1164,8 +1164,8 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
         super().__init__(instance, encoding, domain, model_output, verbose, benchmark, result_path, external, highways,
                          clingo_arguments)
 
-    def init_benchmarker(self, instance: str, result_path: str) -> None:
-        self.benchmarker = Benchmarker("prioritized", instance, result_path)
+    def init_benchmarker(self, instance: str, domain: str, result_path: str) -> None:
+        self.benchmarker = Benchmarker("prioritized", instance, domain, result_path)
 
     def init_robot(self, rid: int, x: int, y: int) -> None:
         self.robots.append(RobotPrioritized(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
@@ -1213,8 +1213,8 @@ class PathfindDecentralizedPrioritized(PathfindDecentralized):
 
 
 class PathfindDecentralizedTraffic(PathfindDecentralized):
-    def init_benchmarker(self, instance: str, result_path: str) -> None:
-        self.benchmarker = Benchmarker("traffic", instance, result_path)
+    def init_benchmarker(self, instance: str, domain: str, result_path: str) -> None:
+        self.benchmarker = Benchmarker("traffic", instance, domain, result_path)
 
     def init_robot(self, rid: int, x: int, y: int) -> None:
         self.robots.append(Robot(rid, [x, y], self.encoding, self.domain, self.instance, self.external,
