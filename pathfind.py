@@ -1293,6 +1293,9 @@ if __name__ == "__main__":
     else:
         encoding = "./encodings/pathfindDecentralized.lp"
 
+    if args.benchmark:
+        ts = time()
+
     # Initialize the Pathfind object
     if args.strategy == 'sequential':
         pathfind = PathfindDecentralizedSequential(args.instance, encoding, args.domain, not args.nomodel, args.verbose,
@@ -1327,7 +1330,6 @@ if __name__ == "__main__":
                                        args.benchmark, args.results, args.Highways, clingo_args)
 
     if args.benchmark:
-        ts = time()
         plan_length = pathfind.run()
         tf = time()
         run_time = tf - ts
