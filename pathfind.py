@@ -221,7 +221,7 @@ class PathfindCentralized(Pathfind):
 
         for atom in assignment:
             if atom.name == "goal":
-                if (atom.arguments[2] == 1) or (self.domain == "b"):
+                if (atom.arguments[2].number == 1) or (self.domain == "b"):
                     self.prg.add("base", [], str(atom) + ".")
 
     def run(self):
