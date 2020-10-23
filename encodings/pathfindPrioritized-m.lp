@@ -9,6 +9,7 @@ robot(r).
 #include "./action-m.lp".
 #include "./optimization.lp".
 #include "./outputPrioritized.lp".
+#include "./horizon-m.lp".
 
 :- pos(C,R,_), blockAll(C), robot(R).
 

@@ -13,7 +13,6 @@
 
 #program base.
 
-time(1..30).
 
 % init
 init(object(highway,1),value(at,(1,1))).

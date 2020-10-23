@@ -12,3 +12,4 @@ available(N) :- init(object(shelf,N),value(at,_)).
 #include "./action-m.lp".
 #include "./optimization.lp".
 #include "./output.lp".
+#include "./horizon-m.lp".

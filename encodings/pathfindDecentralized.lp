@@ -35,3 +35,6 @@ robot(r).
 #include "./action.lp".
 #include "./optimization.lp".
 #include "./output.lp".
+#include "./horizon-m.lp".
+
+
