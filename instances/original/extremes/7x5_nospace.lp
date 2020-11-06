@@ -7,7 +7,6 @@
 
 #program base.
 
-time(1..31).
 
 %init
 init(object(node, 3), value(at, (3, 1))).

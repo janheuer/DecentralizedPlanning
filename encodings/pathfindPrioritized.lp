@@ -8,6 +8,7 @@ robot(r).
 #include "./action.lp".
 #include "./optimization.lp".
 #include "./outputPrioritized.lp".
+#include "./horizonPrioritized.lp".
 
 :- pos(C,R,_), blockAll(C), robot(R).
 
