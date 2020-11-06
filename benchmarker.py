@@ -30,6 +30,8 @@ class Benchmarker(object):
         if type == "main":
             file += "main" + ".json"
         else:
+            if type != "plan":
+                return
             # add key to track type of solving (i.e. assignment, plan, conflict)
             stats["type"] = type
             file += str(self.counter) + ".json"
