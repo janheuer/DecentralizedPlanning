@@ -234,7 +234,7 @@ class PathfindCentralized(Pathfind):
 
         self.prg.ground(parts)
 
-        self.model = self.solve(self.prg, "solve")
+        self.model = self.solve(self.prg, "plan")
 
         # print actions and save plan length
         for atom in self.model:
