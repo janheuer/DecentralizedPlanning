@@ -434,7 +434,6 @@ init(object(robot,13),value(at,(14,10))).
 init(object(robot,14),value(at,(15,10))). 
 init(object(robot,15),value(at,(17,10))). 
 init(object(robot,16),value(at,(18,10))). 
-
 init(object(product,1),value(on,(30,10))). 
 init(object(order,1),value(line,(1,1))). 
 init(object(product,2),value(on,(55,10))). 
@@ -467,7 +466,6 @@ init(object(product,15),value(on,(62,10))).
 init(object(order,15),value(line,(15,1))). 
 init(object(product,16),value(on,(41,10))). 
 init(object(order,16),value(line,(16,1))). 
-
 nextto((1,2),(0,-1),(1,1)). 
 nextto((2,2),(0,-1),(2,1)). 
 nextto((3,2),(0,-1),(3,1)). 

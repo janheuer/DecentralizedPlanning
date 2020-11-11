@@ -85,7 +85,7 @@ nextto((AX,Y),( 1,0),(BX,Y)) :- partialLane(Y,XS,XE,r), node((AX,Y)), node((BX,Y
 nextto((AX,Y),(-1,0),(BX,Y)) :- partialLane(Y,XS,XE,l), node((AX,Y)), node((BX,Y)), XS <= BX, AX <= XE, AX-BX =  1.
 
 
-#show time/1.
+%#show time/1.
 #show init/2.
 #show nextto/3.
 %#show storage/1.

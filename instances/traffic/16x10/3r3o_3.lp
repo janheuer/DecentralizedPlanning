@@ -321,26 +321,23 @@ init(object(shelf,48),value(at,(15,8))).
 init(object(robot,1),value(at,(1,10))). 
 init(object(robot,2),value(at,(2,10))). 
 init(object(robot,3),value(at,(3,10))). 
-
-init(object(product,1),value(on,  (10,10))). 
-init(object(product,2),value(on,  (13,10))). 
-init(object(product,3),value(on,  (23,10))). 
-init(object(product,4),value(on,  (20,10))). 
-init(object(product,5),value(on,  (33,10))). 
-init(object(product,6),value(on,  (47,10))). 
-init(object(product,7),value(on,  (38,10))). 
-init(object(product,8),value(on,  (48,10))). 
-init(object(product,9),value(on,  (34,10))). 
+init(object(product,1),value(on,(10,10))). 
+init(object(product,2),value(on,(13,10))). 
+init(object(product,3),value(on,(23,10))). 
+init(object(product,4),value(on,(20,10))). 
+init(object(product,5),value(on,(33,10))). 
+init(object(product,6),value(on,(47,10))). 
+init(object(product,7),value(on,(38,10))). 
+init(object(product,8),value(on,(48,10))). 
+init(object(product,9),value(on,(34,10))). 
 init(object(product,10),value(on,(30,10))). 
 init(object(product,11),value(on,(19,10))). 
 init(object(product,12),value(on,(15,10))). 
 init(object(product,13),value(on,(29,10))). 
 init(object(product,14),value(on,(44,10))). 
-
 init(object(order,1),value(line,(1,1))). 
 init(object(order,2),value(line,(2,1))). 
 init(object(order,3),value(line,(3,1))). 
-
 nextto((1,10),(0,-1),(1,9)). 
 nextto((2,10),(0,-1),(2,9)). 
 nextto((3,10),(0,-1),(3,9)). 

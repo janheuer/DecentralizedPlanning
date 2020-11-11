@@ -1,12 +1,9 @@
-
-
-
 init(object(order,1),value(pickingStation,1)). 
 init(object(order,2),value(pickingStation,2)). 
 init(object(order,3),value(pickingStation,3)). 
 init(object(order,4),value(pickingStation,1)). 
 init(object(order,5),value(pickingStation,2)). 
-init(object(order,6),value(pickingStation,3)).
+init(object(order,6),value(pickingStation,3)). 
 init(object(node,2),value(at,(2,1))). 
 init(object(node,18),value(at,(2,2))). 
 init(object(node,34),value(at,(2,3))). 

@@ -426,7 +426,6 @@ init(object(robot,5),value(at,(5,10))).
 init(object(robot,6),value(at,(7,10))). 
 init(object(robot,7),value(at,(8,10))). 
 init(object(robot,8),value(at,(9,10))). 
-
 init(object(product,1),value(on,(30,10))). 
 init(object(order,1),value(line,(1,1))). 
 init(object(product,2),value(on,(55,10))). 
@@ -443,11 +442,14 @@ init(object(product,7),value(on,(26,10))).
 init(object(order,7),value(line,(7,1))). 
 init(object(product,8),value(on,(36,10))). 
 init(object(order,8),value(line,(8,1))). 
-
 nextto((1,10),(0,-1),(1,9)). 
 nextto((2,10),(0,-1),(2,9)). 
 nextto((3,10),(0,-1),(3,9)). 
 nextto((4,10),(0,-1),(4,9)). 
+nextto((5,10),(0,-1),(5,9)). 
+nextto((7,10),(0,-1),(7,9)). 
+nextto((8,10),(0,-1),(8,9)). 
+nextto((9,10),(0,-1),(9,9)). 
 nextto((6,4),(-1,0),(5,4)). 
 nextto((6,5),(-1,0),(5,5)). 
 nextto((6,7),(-1,0),(5,7)). 
@@ -800,11 +802,7 @@ nextto((17,6),(1,0),(18,6)).
 nextto((18,6),(1,0),(19,6)). 
 nextto((19,6),(1,0),(20,6)). 
 nextto((20,6),(1,0),(21,6)). 
-nextto((5,10),(1,0),(6,10)). 
 nextto((6,10),(1,0),(7,10)). 
-nextto((7,10),(1,0),(8,10)). 
-nextto((8,10),(1,0),(9,10)). 
-nextto((9,10),(1,0),(10,10)). 
 nextto((10,10),(1,0),(11,10)). 
 nextto((11,10),(1,0),(12,10)). 
 nextto((12,10),(1,0),(13,10)). 
@@ -819,4 +817,8 @@ nextto((20,10),(1,0),(21,10)).
 nextto((1,10),(1,0),(2,10)). 
 nextto((2,10),(1,0),(3,10)). 
 nextto((3,10),(1,0),(4,10)). 
-nextto((4,10),(1,0),(5,10)).
+nextto((4,10),(1,0),(5,10)). 
+nextto((5,10),(1,0),(6,10)). 
+nextto((7,10),(1,0),(8,10)). 
+nextto((8,10),(1,0),(9,10)). 
+nextto((9,10),(1,0),(10,10)).
