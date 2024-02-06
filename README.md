@@ -23,7 +23,7 @@ All other conflicts are resolved by making one of the robots wait.
 
 For more details see the following project reports:
 
-[Jan Heuer and Cedric-John Martens: Decentralize Planning in the asprilo Framework, 2019](https://github.com/janheuer/DecentralizedPlanning/files/14181350/report2019.pdf)
+[Jan Heuer and Cedric-John Martens: Decentralized Planning in the asprilo Framework, 2019](https://github.com/janheuer/DecentralizedPlanning/files/14181350/report2019.pdf)
 
 [Jan Heuer and Cedric-John Martens: Avoiding Conflicts in Decentralized Planning, 2022](https://github.com/janheuer/DecentralizedPlanning/files/14181352/report2022.pdf)
 
